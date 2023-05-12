@@ -1,6 +1,7 @@
 package atom
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -28,6 +29,8 @@ const (
 	stateScanQRCode
 	stateLoggedIn
 )
+
+var ErrQRLoginAlreadyStarted = errors.New("qr login already started")
 
 type Community struct {
 	Name string `json:"value"`
@@ -105,10 +108,11 @@ func NewClient() *Client {
 	return c
 }
 
-// StartQRLogin starts the qr login process and returns the url of the qr code
+// StartQRLogin starts the qr login process and returns the url of the qr code.
+// If the login already started, ErrQRLoginAlreadyStarted is returned
 func (cli *Client) StartQRLogin(onLogin LoginHandler) (string, error) {
-	if cli.state.Load() != stateLoggedOut {
-		return "", fmt.Errorf("logged in")
+	if cli.state.Load() == stateScanQRCode {
+		return "", ErrQRLoginAlreadyStarted
 	}
 
 	negot, err := cli.negotiate()
