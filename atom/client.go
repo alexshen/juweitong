@@ -30,7 +30,10 @@ const (
 	stateLoggedIn
 )
 
-var ErrQRLoginAlreadyStarted = errors.New("qr login already started")
+var (
+	ErrQRLoginAlreadyStarted = errors.New("qr login already started")
+	ErrNotLoggedIn           = errors.New("not logged in")
+)
 
 type Community struct {
 	Name string `json:"value"`
@@ -451,7 +454,7 @@ func (cli *Client) likePost(apiPath string, favText string, id string) (bool, er
 
 func (cli *Client) ensureLoggedIn() error {
 	if cli.state.Load() != stateLoggedIn {
-		return fmt.Errorf("not logged in")
+		return ErrNotLoggedIn
 	}
 	return nil
 }
