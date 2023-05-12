@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -138,7 +139,7 @@ func (cli *Client) negotiate() (negotiationResult, error) {
 		cli.httpclient.R().
 			SetQueryParams(map[string]string{
 				"clientProtocol": clientProtocol,
-				"_":              fmt.Sprint(time.Now().UnixMilli()),
+				"_":              strconv.FormatInt(time.Now().UnixMilli(), 10),
 			}).
 			SetResult(&negot),
 		"/authorize/negotiate")
@@ -151,7 +152,7 @@ func (cli *Client) createLoginConnection(token string) (*websocket.Conn, error) 
 	opts.Set("clientProtocol", "2.1")
 	opts.Set("transport", "webSockets")
 	opts.Set("connectionToken", token)
-	opts.Set("tid", fmt.Sprint(int(rand.Float32()*11)))
+	opts.Set("tid", strconv.Itoa(int(rand.Float32()*11)))
 
 	u := "wss://" + domain + "/neighbour/authorize/connect?" + opts.Encode()
 	conn, _, err := websocket.DefaultDialer.Dial(u, nil)
@@ -160,7 +161,7 @@ func (cli *Client) createLoginConnection(token string) (*websocket.Conn, error) 
 	}
 
 	opts.Del("tid")
-	opts.Add("_", fmt.Sprint(time.Now().UnixMilli()))
+	opts.Add("_", strconv.FormatInt(time.Now().UnixMilli(), 10))
 
 	_, err = Get(
 		cli.httpclient.R(),
@@ -256,7 +257,7 @@ func (cli *Client) updateCommunities() {
 	}
 	_, err := Get(
 		cli.httpclient.R().
-			SetQueryParam("seed", fmt.Sprint(time.Now().UnixMilli())).
+			SetQueryParam("seed", strconv.FormatInt(time.Now().UnixMilli(), 10)).
 			SetResult(&res),
 		"api/member/communities")
 	if err != nil {
@@ -312,7 +313,7 @@ func (cli *Client) SetCurrentCommunity(i int) error {
 		return err
 	}
 	_, err := Get(cli.httpclient.R().
-		SetQueryParam("seed", fmt.Sprint(time.Now().UnixMilli())),
+		SetQueryParam("seed", strconv.FormatInt(time.Now().UnixMilli(), 10)),
 		"/api/member/switch/"+cli.Communites[i].Id)
 	if err != nil {
 		return err
@@ -423,7 +424,7 @@ func (cli *Client) getPostIds(apiPath string, queryParams map[string]string, cou
 		cli.httpclient.R().
 			SetQueryParams(queryParams).
 			SetQueryParam("begin", "0").
-			SetQueryParam("count", fmt.Sprint(count)),
+			SetQueryParam("count", strconv.Itoa(count)),
 		apiPath)
 
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(resp.String()))
