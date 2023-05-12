@@ -291,6 +291,10 @@ func (cli *Client) StopQRLogin() {
 	<-cli.loginDone
 }
 
+func (cli *Client) IsLoggedIn() bool {
+	return cli.state.Load() == stateLoggedIn
+}
+
 func (cli *Client) GetCommunites() []Community {
 	return cli.Communites
 }
