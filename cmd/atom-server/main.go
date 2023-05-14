@@ -201,7 +201,8 @@ func isLoggedIn(w http.ResponseWriter, r *http.Request) {
 
 func getCommunities(w http.ResponseWriter, r *http.Request) {
 	type responseData struct {
-		Names []string `json:"names"`
+		Names   []string `json:"names"`
+		Current int      `json:"current"`
 	}
 
 	client, err := clientMgr.Get(w, r)
@@ -211,9 +212,10 @@ func getCommunities(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeSuccess(w, responseData{
-		lo.Map(client.Communites, func(e atom.Community, i int) string {
+		Names: lo.Map(client.Communites, func(e atom.Community, i int) string {
 			return e.Name
 		}),
+		Current: client.CurrentCommunityIndex(),
 	})
 }
 
