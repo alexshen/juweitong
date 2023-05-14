@@ -219,6 +219,37 @@ func getCommunities(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func setCurrentCommunity(w http.ResponseWriter, r *http.Request) {
+	type requestData struct {
+		Current int `json:"current"`
+	}
+
+	client, err := clientMgr.Get(w, r)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	var query requestData
+	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
+		log.Printf("invalid query: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if query.Current < 0 || query.Current >= len(client.Communites) {
+		log.Printf("invalid community index: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if err := client.SetCurrentCommunity(query.Current); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeSuccess(w, nil)
+}
+
 func likePosts(w http.ResponseWriter, r *http.Request) {
 	type responseData struct {
 		Count int `json:"count"`
@@ -271,6 +302,7 @@ func main() {
 	router.HandleFunc("/startqrlogin", startQRLogin).Methods("POST")
 	router.HandleFunc("/isloggedin", isLoggedIn).Methods("GET")
 	router.HandleFunc("/getcommunities", getCommunities).Methods("GET")
+	router.HandleFunc("/setcurrentcommunity", setCurrentCommunity).Methods("POST")
 	router.HandleFunc("/like{kind:notices|moments|ccpposts|proposals}", likePosts).Methods("POST")
 
 	server := http.Server{
