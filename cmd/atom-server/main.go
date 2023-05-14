@@ -224,32 +224,44 @@ func likePosts(w http.ResponseWriter, r *http.Request) {
 		Count int `json:"count"`
 	}
 
+	type requestData responseData
+
 	client, err := clientMgr.Get(w, r)
 	if err != nil {
 		return
 	}
 
-	value := r.URL.Query().Get("count")
-	count, err := strconv.Atoi(value)
-	if err != nil || count < 0 {
+	var query requestData
+	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
+		log.Printf("invalid query: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
+	if query.Count <= 0 {
+		log.Printf("invalid count %d", query.Count)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var numPosts int
 	kind, _ := mux.Vars(r)["kind"]
 	switch kind {
 	case "notices":
-		client.LikeNotices(count)
+		numPosts = client.LikeNotices(query.Count)
 	case "moments":
-		client.LikeMoments(count)
+		numPosts = client.LikeMoments(query.Count)
 	case "ccpposts":
-		client.LikeCCPPosts(count)
+		numPosts = client.LikeCCPPosts(query.Count)
 	case "proposals":
-		client.LikeProposals(count)
+		numPosts = client.LikeProposals(query.Count)
 	default:
 		log.Printf("unhandled like kind: %s", kind)
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
+
+	writeSuccess(w, responseData{numPosts})
 }
 
 func main() {
