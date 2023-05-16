@@ -14,14 +14,18 @@ import (
 	"time"
 
 	"github.com/alexshen/juweitong/atom"
+	myioutil "github.com/alexshen/juweitong/cmd/atom-server/ioutil"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/samber/lo"
 )
 
 var (
-	fPort   = flag.Int("port", 8080, "listening port")
-	fMaxAge = flag.Int("age", 600, "max age of a session in second")
+	fPort       = flag.Int("port", 8080, "listening port")
+	fMaxAge     = flag.Int("age", 600, "max age of a session in second")
+	fCABundle   = flag.String("ca", "", "path to the ca bundle file")
+	fCert       = flag.String("cert", "", "path to the cert file")
+	fPrivateKey = flag.String("key", "", "path to the private key")
 )
 
 var (
@@ -295,6 +299,18 @@ func likePosts(w http.ResponseWriter, r *http.Request) {
 	writeSuccess(w, responseData{numPosts})
 }
 
+// getCertFile returns the file path containing the cert file and ca bundle
+func getCertFile(caBundlePath, certPath string) (string, error) {
+	f, err := os.CreateTemp("", "atom-server-cert")
+	if err != nil {
+		return "", err
+	}
+	if err := myioutil.ConcatFiles(f, certPath, caBundlePath); err != nil {
+		return "", err
+	}
+	return f.Name(), nil
+}
+
 func main() {
 	flag.Parse()
 	clientMgr = NewAtomClientManager(time.Second * time.Duration(*fMaxAge))
@@ -327,7 +343,12 @@ func main() {
 		close(shutdown)
 	}()
 
-	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+	certFile, err := getCertFile(*fCABundle, *fCert)
+	if err != nil {
+		log.Fatalf("failed to create the cert file: %v", err)
+	}
+	defer os.Remove(certFile)
+	if err := server.ListenAndServeTLS(certFile, *fPrivateKey); err != http.ErrServerClosed {
 		log.Fatalf("ListenAndServe: %v", err)
 	}
 
