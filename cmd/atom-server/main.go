@@ -23,6 +23,7 @@ import (
 var (
 	fPort       = flag.Int("port", 8080, "listening port")
 	fMaxAge     = flag.Int("age", 600, "max age of a session in second")
+	fHttp       = flag.Bool("http", true, "run in http mode")
 	fCABundle   = flag.String("ca", "", "path to the ca bundle file")
 	fCert       = flag.String("cert", "", "path to the cert file")
 	fPrivateKey = flag.String("key", "", "path to the private key")
@@ -343,13 +344,19 @@ func main() {
 		close(shutdown)
 	}()
 
-	certFile, err := getCertFile(*fCABundle, *fCert)
-	if err != nil {
-		log.Fatalf("failed to create the cert file: %v", err)
-	}
-	defer os.Remove(certFile)
-	if err := server.ListenAndServeTLS(certFile, *fPrivateKey); err != http.ErrServerClosed {
-		log.Fatalf("ListenAndServe: %v", err)
+	if *fHttp {
+		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatalf("ListenAndServe: %v", err)
+		}
+	} else {
+		certFile, err := getCertFile(*fCABundle, *fCert)
+		if err != nil {
+			log.Fatalf("failed to create the cert file: %v", err)
+		}
+		defer os.Remove(certFile)
+		if err := server.ListenAndServeTLS(certFile, *fPrivateKey); err != http.ErrServerClosed {
+			log.Fatalf("ListenAndServeTLS: %v", err)
+		}
 	}
 
 	<-shutdown
