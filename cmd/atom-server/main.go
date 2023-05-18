@@ -11,11 +11,14 @@ import (
 	"os/signal"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/alexshen/juweitong/atom"
+	"github.com/alexshen/juweitong/cmd/atom-server/ioutil"
 	myioutil "github.com/alexshen/juweitong/cmd/atom-server/ioutil"
 	"github.com/google/uuid"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/samber/lo"
 )
@@ -27,11 +30,13 @@ var (
 	fCABundle   = flag.String("ca", "", "path to the ca bundle file")
 	fCert       = flag.String("cert", "", "path to the cert file")
 	fPrivateKey = flag.String("key", "", "path to the private key")
+	fLog        = flag.String("log", "", "path to the log file, if empty, logging to os.Stdout")
 )
 
 var (
 	clientMgr       *AtomClientManager
 	errUnauthorized = errors.New("Unauthorized")
+	logFile         *os.File
 )
 
 const (
@@ -312,6 +317,24 @@ func getCertFile(caBundlePath, certPath string) (string, error) {
 	return f.Name(), nil
 }
 
+func reopenLogFile() error {
+	if *fLog == "" {
+		return nil
+	}
+	f, err := os.OpenFile(*fLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	if logFile != nil {
+		logFile.Close()
+	}
+	logFile = f
+	log.SetOutput(logFile)
+
+	return nil
+}
+
 func main() {
 	flag.Parse()
 	clientMgr = NewAtomClientManager(time.Second * time.Duration(*fMaxAge))
@@ -322,9 +345,14 @@ func main() {
 	router.HandleFunc("/setcurrentcommunity", setCurrentCommunity).Methods("POST")
 	router.HandleFunc("/like{kind:notices|moments|ccpposts|proposals}", likePosts).Methods("POST")
 
+	if err := reopenLogFile(); err != nil {
+		log.Fatal(err)
+	}
+	logWriter := ioutil.NewRedirectableWriter(logFile)
+
 	server := http.Server{
 		Addr:         ":" + strconv.Itoa(*fPort),
-		Handler:      router,
+		Handler:      handlers.LoggingHandler(logWriter, router),
 		ReadTimeout:  2 * time.Minute,
 		WriteTimeout: 2 * time.Minute,
 	}
@@ -332,16 +360,27 @@ func main() {
 
 	shutdown := make(chan struct{})
 	go func() {
-		sigint := make(chan os.Signal, 1)
-		signal.Notify(sigint, os.Interrupt)
+		defer close(shutdown)
+		sigint := make(chan os.Signal, 2)
+		signal.Notify(sigint, os.Interrupt, syscall.SIGHUP)
 
-		<-sigint
-
-		if err := server.Shutdown(context.Background()); err != nil {
-			log.Printf("Shutdown: %v", err)
+		for {
+			switch <-sigint {
+			case os.Interrupt:
+				if err := server.Shutdown(context.Background()); err != nil {
+					log.Printf("Shutdown: %v", err)
+				}
+				return
+			case syscall.SIGHUP:
+				// reopen the log file
+				if err := reopenLogFile(); err != nil {
+					log.Printf("unable to open log file: %v", err)
+					break
+				}
+				log.Printf("log file reopened")
+				logWriter.SetWriter(logFile)
+			}
 		}
-
-		close(shutdown)
 	}()
 
 	if *fHttp {
@@ -363,4 +402,7 @@ func main() {
 	clientMgr.Stop()
 
 	log.Print("server has been shutdown")
+	if logFile != nil {
+		logFile.Close()
+	}
 }
