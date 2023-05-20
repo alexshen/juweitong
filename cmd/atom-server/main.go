@@ -24,13 +24,14 @@ import (
 )
 
 var (
-	fPort       = flag.Int("port", 8080, "listening port")
-	fMaxAge     = flag.Int("age", 600, "max age of a session in second")
-	fHttp       = flag.Bool("http", true, "run in http mode")
-	fCABundle   = flag.String("ca", "", "path to the ca bundle file")
-	fCert       = flag.String("cert", "", "path to the cert file")
-	fPrivateKey = flag.String("key", "", "path to the private key")
-	fLog        = flag.String("log", "", "path to the log file, if empty, logging to os.Stdout")
+	fPort              = flag.Int("port", 8080, "listening port")
+	fMaxAge            = flag.Int("age", 600, "max age of a session in second")
+	fHttp              = flag.Bool("http", true, "run in http mode")
+	fCABundle          = flag.String("ca", "", "path to the ca bundle file")
+	fCert              = flag.String("cert", "", "path to the cert file")
+	fPrivateKey        = flag.String("key", "", "path to the private key")
+	fLog               = flag.String("log", "", "path to the log file, if empty, logging to os.Stdout")
+	fOutRequestTimeout = flag.Int("timeout", 60, "seconds before an outgoing request times out")
 )
 
 var (
@@ -121,6 +122,7 @@ func (mgr *AtomClientManager) GetOrNew(w http.ResponseWriter, req *http.Request)
 		})
 	}
 	inst := &clientInstance{id: id, Client: atom.NewClient()}
+	inst.Client.SetTimeout(time.Duration(*fOutRequestTimeout) * time.Second)
 	inst.touch(mgr.maxAge, func() {
 		mgr.remove(id)
 		log.Printf("removed %s", id)

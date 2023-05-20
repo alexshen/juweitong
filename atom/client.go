@@ -112,6 +112,10 @@ func NewClient() *Client {
 	return c
 }
 
+func (cli *Client) SetTimeout(d time.Duration) {
+	cli.httpclient.SetTimeout(d)
+}
+
 // StartQRLogin starts the qr login process and returns the url of the qr code.
 // If the login already started, ErrQRLoginAlreadyStarted is returned
 func (cli *Client) StartQRLogin(onLogin LoginHandler) (string, error) {
