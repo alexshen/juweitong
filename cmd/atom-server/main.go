@@ -26,7 +26,7 @@ import (
 var (
 	fPort              = flag.Int("port", 8080, "listening port")
 	fMaxAge            = flag.Int("age", 600, "max age of a session in second")
-	fHttp              = flag.Bool("http", true, "run in http mode")
+	fHttp              = flag.Bool("http", false, "run in http mode")
 	fCABundle          = flag.String("ca", "", "path to the ca bundle file")
 	fCert              = flag.String("cert", "", "path to the cert file")
 	fPrivateKey        = flag.String("key", "", "path to the private key")
