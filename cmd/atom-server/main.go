@@ -363,12 +363,12 @@ func main() {
 	shutdown := make(chan struct{})
 	go func() {
 		defer close(shutdown)
-		sigint := make(chan os.Signal, 2)
-		signal.Notify(sigint, os.Interrupt, syscall.SIGHUP)
+		sigint := make(chan os.Signal, 1)
+		signal.Notify(sigint, os.Interrupt, syscall.SIGHUP, syscall.SIGTERM)
 
 		for {
 			switch <-sigint {
-			case os.Interrupt:
+			case os.Interrupt, syscall.SIGTERM:
 				if err := server.Shutdown(context.Background()); err != nil {
 					log.Printf("Shutdown: %v", err)
 				}
