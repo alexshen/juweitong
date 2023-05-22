@@ -313,6 +313,7 @@ func getCertFile(caBundlePath, certPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer f.Close() // ignore
 	if err := myioutil.ConcatFiles(f, certPath, caBundlePath); err != nil {
 		return "", err
 	}
