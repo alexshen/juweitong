@@ -233,7 +233,8 @@ func getCommunities(w http.ResponseWriter, r *http.Request) {
 
 func setCurrentCommunity(w http.ResponseWriter, r *http.Request) {
 	type requestData struct {
-		Current int `json:"current"`
+		Current int    `json:"current,omitempty"`
+		Name    string `json:"name"`
 	}
 
 	client, err := clientMgr.Get(w, r)
@@ -242,20 +243,28 @@ func setCurrentCommunity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var query requestData
+	query := requestData{Current: -1}
 	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
 		log.Printf("invalid query: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if query.Current < 0 || query.Current >= len(client.Communites) {
+	index := query.Current
+	if query.Current == -1 {
+		_, index, _ = lo.FindIndexOf(client.Communites, func(e atom.Community) bool { return e.Name == query.Name })
+		if index == -1 {
+			log.Printf("invalid community name: %s", query.Name)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	} else if query.Current < 0 || query.Current >= len(client.Communites) {
 		log.Printf("invalid community index: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if err := client.SetCurrentCommunity(query.Current); err != nil {
+	if err := client.SetCurrentCommunity(index); err != nil {
 		writeError(w, err)
 		return
 	}
