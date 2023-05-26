@@ -351,11 +351,11 @@ func main() {
 	flag.Parse()
 	clientMgr = NewAtomClientManager(time.Second * time.Duration(*fMaxAge))
 	router := mux.NewRouter()
-	router.HandleFunc("/startqrlogin", startQRLogin).Methods("POST")
-	router.HandleFunc("/isloggedin", isLoggedIn).Methods("GET")
-	router.HandleFunc("/getcommunities", getCommunities).Methods("GET")
-	router.HandleFunc("/setcurrentcommunity", setCurrentCommunity).Methods("POST")
-	router.HandleFunc("/like{kind:notices|moments|ccpposts|proposals}", likePosts).Methods("POST")
+	router.HandleFunc("api/startqrlogin", startQRLogin).Methods("POST")
+	router.HandleFunc("api/isloggedin", isLoggedIn).Methods("GET")
+	router.HandleFunc("api/getcommunities", getCommunities).Methods("GET")
+	router.HandleFunc("api/setcurrentcommunity", setCurrentCommunity).Methods("POST")
+	router.HandleFunc("api/like{kind:notices|moments|ccpposts|proposals}", likePosts).Methods("POST")
 
 	if err := reopenLogFile(); err != nil {
 		log.Fatal(err)
