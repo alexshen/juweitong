@@ -95,11 +95,11 @@ func main() {
 	router := mux.NewRouter()
 
 	// register apis
-	router.HandleFunc("api/startqrlogin", startQRLogin).Methods("POST")
-	router.HandleFunc("api/isloggedin", isLoggedIn).Methods("GET")
-	router.HandleFunc("api/getcommunities", getCommunities).Methods("GET")
-	router.HandleFunc("api/setcurrentcommunity", setCurrentCommunity).Methods("POST")
-	router.HandleFunc("api/like{kind:notices|moments|ccpposts|proposals}", likePosts).Methods("POST")
+	router.HandleFunc("/api/startqrlogin", startQRLogin).Methods("POST")
+	router.HandleFunc("/api/isloggedin", isLoggedIn).Methods("GET")
+	router.HandleFunc("/api/getcommunities", getCommunities).Methods("GET")
+	router.HandleFunc("/api/setcurrentcommunity", setCurrentCommunity).Methods("POST")
+	router.HandleFunc("/api/like{kind:notices|moments|ccpposts|proposals}", likePosts).Methods("POST")
 
 	if err := reopenLogFile(); err != nil {
 		log.Fatal(err)
