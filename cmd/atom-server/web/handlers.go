@@ -20,7 +20,7 @@ func SetHtmlRoot(root string) {
 func RegisterHandlers(r *mux.Router) {
 	r.HandleFunc("/qr_login", htmlQRLogin)
 	r.HandleFunc("/community", htmlCommunity)
-	r.HandleFunc("/dolike", htmlDoLike)
+	r.HandleFunc("/dolike", htmlDoLike).Methods("POST")
 }
 
 func getHtml(bodyFile string) *template.Template {
