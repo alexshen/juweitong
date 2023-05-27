@@ -1,4 +1,4 @@
-package main
+package web
 
 import (
 	"io/ioutil"
@@ -6,11 +6,26 @@ import (
 	"net/http"
 	"path/filepath"
 	"text/template"
+
+	"github.com/alexshen/juweitong/cmd/atom-server/api"
+	"github.com/gorilla/mux"
 )
 
+var gHtmlRoot string
+
+func SetHtmlRoot(root string) {
+	gHtmlRoot = root
+}
+
+func RegisterHandlers(r *mux.Router) {
+	r.HandleFunc("/qr_login", htmlQRLogin)
+	r.HandleFunc("/community", htmlCommunity)
+	r.HandleFunc("/dolike", htmlDoLike)
+}
+
 func getHtml(bodyFile string) *template.Template {
-	page := template.Must(template.ParseFiles(filepath.Join(*fHtmlPath, "root.tmpl")))
-	text, err := ioutil.ReadFile(filepath.Join(*fHtmlPath, bodyFile))
+	page := template.Must(template.ParseFiles(filepath.Join(gHtmlRoot, "root.tmpl")))
+	text, err := ioutil.ReadFile(filepath.Join(gHtmlRoot, bodyFile))
 	if err != nil {
 		panic(err)
 	}
@@ -25,15 +40,15 @@ func htmlQRLogin(w http.ResponseWriter, r *http.Request) {
 
 func redirectQRLogin(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusUnauthorized)
-	data, err := ioutil.ReadFile(filepath.Join(*fHtmlPath, "redirect.html"))
+	data, err := ioutil.ReadFile(filepath.Join(gHtmlRoot, "redirect.html"))
 	if err == nil {
 		w.Write(data)
 	}
 }
 
 func htmlCommunity(w http.ResponseWriter, r *http.Request) {
-	client, err := clientMgr.Get(w, r)
-	if err == errUnauthorized {
+	client, err := api.ClientManager().Get(w, r)
+	if err == api.ErrUnauthorized {
 		redirectQRLogin(w)
 		return
 	}

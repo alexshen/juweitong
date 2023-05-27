@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"encoding/json"
@@ -16,64 +16,74 @@ import (
 
 var (
 	clientMgr       *AtomClientManager
-	errUnauthorized = errors.New("Unauthorized")
+	ErrUnauthorized = errors.New("Unauthorized")
 )
 
 const (
 	sessionIdName = "jwt_id"
 )
 
-type clientInstance struct {
+type ClientInstance struct {
 	id string
 	*atom.Client
 	t *time.Timer
 }
 
 // touch restarts the timeout timer with timeout d
-func (o *clientInstance) touch(d time.Duration, onTimeout func()) {
+func (o *ClientInstance) touch(d time.Duration, onTimeout func()) {
 	o.stopTimer()
 	o.t = time.AfterFunc(d, onTimeout)
 }
 
 // stopTimer stops the timeout timer
-func (o *clientInstance) stopTimer() {
+func (o *ClientInstance) stopTimer() {
 	if o.t != nil {
 		o.t.Stop()
 	}
 }
 
 type AtomClientManager struct {
-	mtx     sync.Mutex
-	clients map[string]*clientInstance
-	maxAge  time.Duration
+	mtx               sync.Mutex
+	clients           map[string]*ClientInstance
+	maxAge            time.Duration
+	outRequestTimeout time.Duration
 }
 
-func NewAtomClientManager(maxAge time.Duration) *AtomClientManager {
-	return &AtomClientManager{
-		clients: make(map[string]*clientInstance),
-		maxAge:  maxAge,
+func InitClientManager(maxAge time.Duration, outRequestTimeout time.Duration) {
+	if clientMgr != nil {
+		panic("InitClientManager called twice")
+	}
+
+	clientMgr = &AtomClientManager{
+		clients:           make(map[string]*ClientInstance),
+		maxAge:            maxAge,
+		outRequestTimeout: outRequestTimeout,
 	}
 }
 
+func ClientManager() *AtomClientManager {
+	return clientMgr
+}
+
 // Get returns an existing atom.Client
-func (mgr *AtomClientManager) Get(w http.ResponseWriter, req *http.Request) (*clientInstance, error) {
+func (mgr *AtomClientManager) Get(w http.ResponseWriter, req *http.Request) (*ClientInstance, error) {
 	cookie, err := req.Cookie(sessionIdName)
 	mgr.mtx.Lock()
 	defer mgr.mtx.Unlock()
 
 	if err == http.ErrNoCookie {
-		return nil, errUnauthorized
+		return nil, ErrUnauthorized
 	}
 	inst, ok := mgr.clients[cookie.Value]
 	if !ok {
-		return nil, errUnauthorized
+		return nil, ErrUnauthorized
 	}
 	return inst, nil
 }
 
 // GetOrNew always returns a new atom.Client. If there is already an old atom.Client,
 // StopQRLogin is called, then it is removed.
-func (mgr *AtomClientManager) GetOrNew(w http.ResponseWriter, req *http.Request) (*clientInstance, error) {
+func (mgr *AtomClientManager) GetOrNew(w http.ResponseWriter, req *http.Request) (*ClientInstance, error) {
 	var id string
 
 	cookie, err := req.Cookie(sessionIdName)
@@ -99,8 +109,8 @@ func (mgr *AtomClientManager) GetOrNew(w http.ResponseWriter, req *http.Request)
 			Path:  "/",
 		})
 	}
-	inst := &clientInstance{id: id, Client: atom.NewClient()}
-	inst.Client.SetTimeout(time.Duration(*fOutRequestTimeout) * time.Second)
+	inst := &ClientInstance{id: id, Client: atom.NewClient()}
+	inst.Client.SetTimeout(mgr.outRequestTimeout)
 	inst.touch(mgr.maxAge, func() {
 		mgr.remove(id)
 		log.Printf("removed %s", id)
@@ -125,6 +135,41 @@ func (mgr *AtomClientManager) Stop() {
 	for _, inst := range mgr.clients {
 		inst.StopQRLogin()
 	}
+}
+
+func RegisterHandlers(r *mux.Router) {
+	r.HandleFunc("/api/startqrlogin", startQRLogin).Methods("POST")
+	r.HandleFunc("/api/isloggedin", isLoggedIn).Methods("GET")
+	r.HandleFunc("/api/getcommunities", getCommunities).Methods("GET")
+	r.HandleFunc("/api/setcurrentcommunity", setCurrentCommunity).Methods("POST")
+	r.HandleFunc("/api/like{kind:notices|moments|ccpposts|proposals}", likePosts).Methods("POST")
+}
+
+type responseMessage struct {
+	Success bool   `json:"success"`
+	Err     string `json:"err,omitempty"`
+	Data    any    `json:"data,omitempty"`
+}
+
+func writeJSON(w http.ResponseWriter, obj any) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(obj); err != nil {
+		log.Print(err)
+	}
+}
+
+func writeSuccess(w http.ResponseWriter, data any) {
+	writeJSON(w, responseMessage{
+		Success: true,
+		Data:    data,
+	})
+}
+
+func writeError(w http.ResponseWriter, err error) {
+	writeJSON(w, responseMessage{
+		Success: false,
+		Err:     err.Error(),
+	})
 }
 
 func startQRLogin(w http.ResponseWriter, r *http.Request) {
