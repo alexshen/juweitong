@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<!-- vim: tw=0, wm=0 -->
+<html lang="zh-cmn-Hans">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=0,viewport-fit=cover"/>
+    <meta name="wechat-enable-text-zoom-em" content="true"/>
+    <title>小通通日常助手</title>
+    <link rel="stylesheet" href="https://res.wx.qq.com/t/wx_fed/weui-source/res/2.5.16/weui.min.css"/>
+    <link rel="stylesheet" href="static/style/example.css"/>
+    <style>
+        .page__title {
+            text-align: center;
+        }
+        .page {
+            opacity: 1;
+        }
+        .center-block {
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+</head>
+<body ontouchstart>
+    <script type="text/javascript">
+      if(window.__wxWebEnv){
+        document.body.style.webkitTextSizeAdjust = JSON.parse(window.__wxWebEnv.getEnv()).fontScale + '%';
+      }
+    </script>
+    <div class="container" id="container">
+        <div class="page">
+            {{template "content" .}}
+            <div class="page__ft">
+                <div class="weui-footer">
+                    <div class="weui-footer__text">
+                        <a class="weui-footer__text__meta"
+                            href="//beian.miit.gov.cn/">备案号：TODO</a>
+                        <a class="weui-footer__text__meta gongan_meta"
+                            href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=44030502009285">
+                        <img src="./images/pic_gongan.png">网站备案号TODO</a>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

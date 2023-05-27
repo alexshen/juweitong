@@ -27,6 +27,8 @@ var (
 	fPrivateKey        = flag.String("key", "", "path to the private key")
 	fLog               = flag.String("log", "", "path to the log file, if empty, logging to os.Stdout")
 	fOutRequestTimeout = flag.Int("timeout", 60, "seconds before an outgoing request times out")
+	fAssetPath         = flag.String("asset", "", "root path to the assets")
+	fHtmlPath          = flag.String("html", "", "root path to the html templates")
 )
 
 var logFile *os.File
@@ -100,6 +102,21 @@ func main() {
 	router.HandleFunc("/api/getcommunities", getCommunities).Methods("GET")
 	router.HandleFunc("/api/setcurrentcommunity", setCurrentCommunity).Methods("POST")
 	router.HandleFunc("/api/like{kind:notices|moments|ccpposts|proposals}", likePosts).Methods("POST")
+
+	// register assets handlers
+	if *fAssetPath == "" {
+		log.Fatal("asset root path not specified")
+	}
+	router.PathPrefix("/static/").Handler(
+		http.StripPrefix("/static/", http.FileServer(http.Dir(*fAssetPath))))
+
+	// register web handlers
+	if *fHtmlPath == "" {
+		log.Fatal("html root path not specified")
+	}
+	router.HandleFunc("/qr_login", htmlQRLogin)
+	router.HandleFunc("/community", htmlCommunity)
+	router.HandleFunc("/dolike", htmlDoLike)
 
 	if err := reopenLogFile(); err != nil {
 		log.Fatal(err)

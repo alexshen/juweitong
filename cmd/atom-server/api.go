@@ -62,12 +62,10 @@ func (mgr *AtomClientManager) Get(w http.ResponseWriter, req *http.Request) (*cl
 	defer mgr.mtx.Unlock()
 
 	if err == http.ErrNoCookie {
-		w.WriteHeader(http.StatusUnauthorized)
 		return nil, errUnauthorized
 	}
 	inst, ok := mgr.clients[cookie.Value]
 	if !ok {
-		w.WriteHeader(http.StatusUnauthorized)
 		return nil, errUnauthorized
 	}
 	return inst, nil
@@ -98,6 +96,7 @@ func (mgr *AtomClientManager) GetOrNew(w http.ResponseWriter, req *http.Request)
 		http.SetCookie(w, &http.Cookie{
 			Name:  sessionIdName,
 			Value: id,
+			Path:  "/",
 		})
 	}
 	inst := &clientInstance{id: id, Client: atom.NewClient()}
@@ -156,6 +155,7 @@ func isLoggedIn(w http.ResponseWriter, r *http.Request) {
 
 	client, err := clientMgr.Get(w, r)
 	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
 		log.Print(err)
 		return
 	}
@@ -171,6 +171,7 @@ func getCommunities(w http.ResponseWriter, r *http.Request) {
 
 	client, err := clientMgr.Get(w, r)
 	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
 		log.Print(err)
 		return
 	}
@@ -191,6 +192,7 @@ func setCurrentCommunity(w http.ResponseWriter, r *http.Request) {
 
 	client, err := clientMgr.Get(w, r)
 	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
 		log.Print(err)
 		return
 	}
@@ -232,6 +234,7 @@ func likePosts(w http.ResponseWriter, r *http.Request) {
 
 	client, err := clientMgr.Get(w, r)
 	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 

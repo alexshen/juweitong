@@ -1,0 +1,37 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
+<script src="https://res.wx.qq.com/t/wx_fed/weui.js/res/1.2.18/weui.min.js"></script>
+<script src="./static/script/common.js"></script>
+<script>
+    $(function init() {
+        $('#form').submit(function (e) {
+            weui.form.validate('#form', function (error) {
+                if (error) {
+                    e.preventDefault();
+                }
+            });
+        });
+    });
+
+</script>
+<div class="page__hd">
+    <h1 class="page__title">选择需要点赞的社区</h1>
+</div>
+<div class="page__bd form">
+    <form id="form" method="POST" novalidate action="/dolike">
+        <div class="weui-cells weui-cells_checkbox">
+            {{range $i, $item := .}}
+            <label class="weui-cell weui-check__label">
+                <div class="weui-cell__hd">
+                    <input {{if eq $i 0}} required pattern="{1,}" {{end}}
+                        type="checkbox" tips="请选择至少一个社区" class="weui-check" name="community" value="{{$item.Name}}"/>
+                    <i class="weui-icon-checked"></i>
+                </div>
+                <div class="weui-cell__bd">{{$item.Name}}</div>
+            </label>
+            {{end}}
+        </div>
+        <div class="weui-btn-area">
+            <button id="formSubmitBtn" class="weui-btn weui-btn_primary">点赞</a>
+        </div>
+    </form>
+</div>
