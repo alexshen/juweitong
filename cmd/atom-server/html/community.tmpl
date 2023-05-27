@@ -10,7 +10,33 @@
                 }
             });
         });
+
+        const ignored = new Set(getIgnoredCommunities());
+        for (let cell of $('.weui-cell')) {
+            const checkbox = $(cell).find('input');
+            checkbox.prop('checked', !ignored.has(checkbox.val()));
+            checkbox.on('change', function (e) {
+                if (e.target.checked) {
+                    ignored.delete($(e.target).val());
+                } else {
+                    ignored.add($(e.target).val());
+                }
+                setIgnoredCommunities(Array.from(ignored));
+            });
+        }
     });
+
+    function getIgnoredCommunities() {
+        try {
+            return JSON.parse(localStorage.getItem("ignored_communities")) || [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function setIgnoredCommunities(data) {
+        localStorage.setItem("ignored_communities", JSON.stringify(data));
+    }
 
 </script>
 <div class="page__hd">
@@ -23,7 +49,8 @@
             <label class="weui-cell weui-check__label">
                 <div class="weui-cell__hd">
                     <input {{if eq $i 0}} required pattern="{1,}" {{end}}
-                        type="checkbox" tips="请选择至少一个社区" class="weui-check" name="community" value="{{$item.Name}}"/>
+                        type="checkbox" tips="请选择至少一个社区" class="weui-check" 
+                        name="community" value="{{$item.Name}}"/>
                     <i class="weui-icon-checked"></i>
                 </div>
                 <div class="weui-cell__bd">{{$item.Name}}</div>
