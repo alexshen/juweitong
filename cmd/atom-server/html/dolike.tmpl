@@ -1,0 +1,214 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
+<script src="https://res.wx.qq.com/t/wx_fed/weui.js/res/1.2.18/weui.min.js"></script>
+<script src="./static/script/common.js"></script>
+<script>
+    function setIconState(icon, state) {
+        for (let c of $(icon).children()) {
+            let e = $(c)
+            if (e.attr('name') === state) {
+                e.show();
+            } else {
+                e.hide();
+            }
+        }
+    }
+
+    $(function () {
+        for (let c of $("[name=root] > .state-icon")) {
+            setIconState(c, 'loading')
+        }
+        for (let c of $('.step > .state-icon')) {
+            setIconState(c, 'loading')
+        }
+        doLike();
+    });
+
+
+    function setCurrentCommunity(name, onSuccess, onFailure) {
+        common.request("/api/setcurrentcommunity", {
+            body: JSON.stringify({
+                name: name
+            }),
+            method: "POST",
+            success: onSuccess,
+            error: onFailure,
+        });
+    }
+
+    function setStep(stepElem, state, numPosts) {
+        setIconState(stepElem.find('.state-icon'), state);
+        stepElem.find('label[name=num]')
+            .text(state === 'success' ? numPosts + '条' : '');
+    }
+
+    function setCommunityIcon(elem, state) {
+        setIconState(elem.find('[name=root] > .state-icon'), state);
+    }
+
+    function doLike() {
+        const communityElems = $('.community');
+
+        likeCommunity(0, () => {
+            console.log('liking finished');
+        });
+
+        // like communities[i:]
+        function likeCommunity(i, onComplete) {
+            if (i >= communityElems.length) {
+                return onComplete();
+            }
+
+            const communityElem = $(communityElems[i]);
+            const name = communityElem.find(`[name=root] label`).text();
+            setCurrentCommunity(name, likePosts, () => {
+                setCommunityIcon(communityElem, 'error');
+                // step icons
+                communityElem.find('.step > .state-icon').forEach((i, e) => setStep(e, 'error'));
+                likeCommunity(i + 1, onComplete);
+            });
+
+            function likePosts() {
+                const stepElems = communityElem.find('.step');
+                doLikeStep(stepElems, i, 0, (hasError) => {
+                    setCommunityIcon(communityElem, hasError ? 'error' : 'success');
+                    likeCommunity(i + 1, onComplete);
+                });
+            }
+        }
+
+        function doLikeStep(stepElems, ci, si, onComplete) {
+            if (si >= stepElems.length) {
+                return onComplete(false);
+            }
+            const step = $(stepElems[si]);
+            common.request('/api/like' + step.attr('kind'), {
+                body: JSON.stringify({
+                    count: 10
+                }),
+                method: 'POST',
+                success(data) {
+                    setStep(step, 'success', data.count);
+                    nextStep((hasError) => onComplete(hasError));
+                },
+                error() {
+                    setStep(step, 'error');
+                    nextStep(() => onComplete(true));
+                },
+            });
+
+            function nextStep(onComplete) {
+                doLikeStep(stepElems, ci, si + 1, onComplete);
+            }
+        }
+    }
+</script>
+<style>
+    .community {
+        width: 100%;
+        padding-left:20px;
+    }
+    .community * {
+        vertical-align: middle;
+    }
+    .state-icon {
+        display: inline;
+    }
+    .community-icon {
+        display: inline;
+        width: 32px;
+        height: 32px;
+    }
+    .step {
+        display: flex;
+        margin-left: 19px;
+        width: 170px;
+        align-items: center;
+    }
+    .step * {
+        flex: 0 0 auto;
+        margin-left: 5px;
+    }
+    .step-icon {
+        display: inline;
+        width: 24px;
+        height: 24px;
+    }
+    .step-space {
+        flex: 1;
+    }
+    .step label {
+        font-size: 15px;
+        color: var(--weui-FG-0);
+    }
+    .icon-loading {
+        color: var(--weui-BRAND);
+    }
+    .icon-error {
+        color: var(--weui-RED);
+    }
+</style>
+<div class="page__hd">
+</div>
+<div class="page__bd form">
+    <div class="weui-cells">
+        {{range .}}
+        <label class="weui-cell weui-check__label">
+            <div class="community">
+                <div name="root">
+                    <div class="state-icon">
+                        <i role="img" name="loading" class="weui-mask-loading icon-loading"></i>
+                        <i role="img" name="success" class="weui-icon-success"></i>
+                        <i role="img" name="error" class="weui-icon-warn icon-error"></i>
+                    </div>
+                    <img class="community-icon" src="./static/image/community.png"/>
+                    <label>{{.}}</label>
+                </div>
+                <div class="step" kind="notices">
+                    <img class="step-icon" src="./static/image/notices.png"/>
+                    <label name="name">公告</label>
+                    <span class="step-space"></span>
+                    <label name="num"></label>
+                    <div class="state-icon">
+                        <i role="img" name="loading" class="weui-mask-loading icon-loading"></i>
+                        <i role="img" name="success" class="weui-icon-success"></i>
+                        <i role="img" name="error" class="weui-icon-warn icon-error"></i>
+                    </div>
+                </div>
+                <div class="step" kind="moments">
+                    <img class="step-icon" src="./static/image/moments.png"/>
+                    <label name="name">左邻右舍</label>
+                    <span class="step-space"></span>
+                    <label name="num"></label>
+                    <div class="state-icon">
+                        <i role="img" name="loading" class="weui-mask-loading icon-loading"></i>
+                        <i role="img" name="success" class="weui-icon-success"></i>
+                        <i role="img" name="error" class="weui-icon-warn icon-error"></i>
+                    </div>
+                </div>
+                <div class="step" kind="ccpposts">
+                    <img class="step-icon" src="./static/image/ccpposts.png"/>
+                    <label name="name">党建园地</label>
+                    <span class="step-space"></span>
+                    <label name="num"></label>
+                    <div class="state-icon">
+                        <i role="img" name="loading" class="weui-mask-loading icon-loading"></i>
+                        <i role="img" name="success" class="weui-icon-success"></i>
+                        <i role="img" name="error" class="weui-icon-warn icon-error"></i>
+                    </div>
+                </div>
+                <div class="step" kind="proposals">
+                    <img class="step-icon" src="./static/image/proposals.png"/>
+                    <label name="name">议事厅</label>
+                    <span class="step-space"></span>
+                    <label name="num"></label>
+                    <div class="state-icon">
+                        <i role="img" name="loading" class="weui-mask-loading icon-loading"></i>
+                        <i role="img" name="success" class="weui-icon-success"></i>
+                        <i role="img" name="error" class="weui-icon-warn icon-error"></i>
+                    </div>
+                </div>
+            </div>
+        </label>
+        {{end}}
+    </div>
+</div>

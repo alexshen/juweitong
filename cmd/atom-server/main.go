@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"log"
 	"net/http"
@@ -12,8 +11,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alexshen/juweitong/cmd/atom-server/api"
 	"github.com/alexshen/juweitong/cmd/atom-server/ioutil"
 	myioutil "github.com/alexshen/juweitong/cmd/atom-server/ioutil"
+	"github.com/alexshen/juweitong/cmd/atom-server/web"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
@@ -27,36 +28,11 @@ var (
 	fPrivateKey        = flag.String("key", "", "path to the private key")
 	fLog               = flag.String("log", "", "path to the log file, if empty, logging to os.Stdout")
 	fOutRequestTimeout = flag.Int("timeout", 60, "seconds before an outgoing request times out")
+	fAssetPath         = flag.String("asset", "", "root path to the assets")
+	fHtmlPath          = flag.String("html", "", "root path to the html templates")
 )
 
 var logFile *os.File
-
-type responseMessage struct {
-	Success bool   `json:"success"`
-	Err     string `json:"err,omitempty"`
-	Data    any    `json:"data,omitempty"`
-}
-
-func writeJSON(w http.ResponseWriter, obj any) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(obj); err != nil {
-		log.Print(err)
-	}
-}
-
-func writeSuccess(w http.ResponseWriter, data any) {
-	writeJSON(w, responseMessage{
-		Success: true,
-		Data:    data,
-	})
-}
-
-func writeError(w http.ResponseWriter, err error) {
-	writeJSON(w, responseMessage{
-		Success: false,
-		Err:     err.Error(),
-	})
-}
 
 // getCertFile returns the file path containing the cert file and ca bundle
 func getCertFile(caBundlePath, certPath string) (string, error) {
@@ -91,15 +67,24 @@ func reopenLogFile() error {
 
 func main() {
 	flag.Parse()
-	clientMgr = NewAtomClientManager(time.Second * time.Duration(*fMaxAge))
-	router := mux.NewRouter()
 
-	// register apis
-	router.HandleFunc("/api/startqrlogin", startQRLogin).Methods("POST")
-	router.HandleFunc("/api/isloggedin", isLoggedIn).Methods("GET")
-	router.HandleFunc("/api/getcommunities", getCommunities).Methods("GET")
-	router.HandleFunc("/api/setcurrentcommunity", setCurrentCommunity).Methods("POST")
-	router.HandleFunc("/api/like{kind:notices|moments|ccpposts|proposals}", likePosts).Methods("POST")
+	router := mux.NewRouter()
+	api.InitClientManager(time.Second*time.Duration(*fMaxAge), time.Second*time.Duration(*fOutRequestTimeout))
+	api.RegisterHandlers(router)
+
+	// register assets handlers
+	if *fAssetPath == "" {
+		log.Fatal("asset root path not specified")
+	}
+	router.PathPrefix("/static/").Handler(
+		http.StripPrefix("/static/", http.FileServer(http.Dir(*fAssetPath))))
+
+	// register web handlers
+	if *fHtmlPath == "" {
+		log.Fatal("html root path not specified")
+	}
+	web.SetHtmlRoot(*fHtmlPath)
+	web.RegisterHandlers(router)
 
 	if err := reopenLogFile(); err != nil {
 		log.Fatal(err)
@@ -155,7 +140,7 @@ func main() {
 	}
 
 	<-shutdown
-	clientMgr.Stop()
+	api.ClientManager().Stop()
 
 	log.Print("server has been shutdown")
 	if logFile != nil {

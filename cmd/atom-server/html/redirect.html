@@ -1,0 +1,21 @@
+<!-- vim: tw=0, wm=0 -->
+<html>
+    <header>
+        <script>
+            let countDown = 3;
+            setInterval(function() {
+                if (--countDown === 0) {
+                    window.location.href = "/qr_login";
+                    return;
+                }
+                updateHint();
+            }, 1000);
+
+            function updateHint() {
+                document.querySelector('#msg').innerText = `Please login again... ${countDown}s`;
+            }
+            document.addEventListener('load', updateHint);
+        </script>
+    </header>
+    <h3 id="msg">Please login again...</h3>
+</html>

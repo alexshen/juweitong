@@ -1,0 +1,80 @@
+<!-- vim: tw=0, wm=0 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
+<script src="https://res.wx.qq.com/t/wx_fed/weui.js/res/1.2.18/weui.min.js"></script>
+<script src="./static/script/common.js"></script>
+<script>
+
+    function showError(msg) {
+        $('#qr_code').hide();
+        showLoading({ show: true, error: msg });
+    }
+
+    function showLoading({ show, error }) {
+        if (show) {
+            if (error) {
+                $('#load_error').show();
+                $('#load_error').text(error);
+                $('#loading').hide();
+            } else {
+                $('#loading').show();
+                $('#load_error').hide();
+            }
+        } else {
+            $('#loading').hide();
+            $('#load_error').hide();
+        }
+    }
+
+    function checkLoginState() {
+        common.request('/api/isloggedin', {
+            success(data) {
+                if (data.loggedin) {
+                    weui.toast('登入成功', { duration: 1000, callback() {
+                        window.location.href = '/community';
+                    }});
+                    // show community page
+                    return;
+                }
+                setTimeout(checkLoginState, 1000);
+            },
+            error(e) {
+                weui.topTips('登入失败: ' + e);
+            }
+        });
+    }
+
+    $(function() {
+        showLoading({ show: true });
+        const imgQRCode = $('#qr_code');
+        imgQRCode.hide();
+        imgQRCode.on('load', function () {
+            showLoading({ show: false });
+            checkLoginState();
+        });
+        imgQRCode.on('error', e => {
+            showError();
+        });
+
+        common.request('/api/startqrlogin', { 
+            method: 'post',
+            success(data) {
+                imgQRCode.attr('src', data.url);
+                imgQRCode.show();
+            },
+            error: showError
+        });
+    });
+</script>
+<div class="page__hd">
+    <h1 class="page__title">长按二维码登入社区通</h1>
+</div>
+<div class="page__bd">
+    <img id="qr_code" class="center-block" style="width: 60%"/>
+    <div id="loading">
+        <i role="img" aria-label="正在加载" class="weui-mask-loading center-block" style="color:var(--weui-BRAND);"></i>
+        <p class="page__desc" style="text-align: center">正在加载</p>
+    </div>
+    <div id="load_error">
+        <p class="page__desc" style="text-align: center">加载失败，请刷新重试</p>
+    </div>
+</div>
