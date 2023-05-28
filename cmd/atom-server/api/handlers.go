@@ -138,11 +138,11 @@ func (mgr *AtomClientManager) Stop() {
 }
 
 func RegisterHandlers(r *mux.Router) {
-	r.HandleFunc("/api/startqrlogin", startQRLogin).Methods("POST")
-	r.HandleFunc("/api/isloggedin", isLoggedIn).Methods("GET")
-	r.HandleFunc("/api/getcommunities", getCommunities).Methods("GET")
-	r.HandleFunc("/api/setcurrentcommunity", setCurrentCommunity).Methods("POST")
-	r.HandleFunc("/api/like{kind:notices|moments|ccpposts|proposals}", likePosts).Methods("POST")
+	r.HandleFunc("/api/startqrlogin", startQRLogin).Methods(http.MethodPost)
+	r.HandleFunc("/api/isloggedin", isLoggedIn).Methods(http.MethodGet)
+	r.HandleFunc("/api/getcommunities", getCommunities).Methods(http.MethodGet)
+	r.HandleFunc("/api/setcurrentcommunity", setCurrentCommunity).Methods(http.MethodPost)
+	r.HandleFunc("/api/like{kind:notices|moments|ccpposts|proposals}", likePosts).Methods(http.MethodPost)
 }
 
 type responseMessage struct {
