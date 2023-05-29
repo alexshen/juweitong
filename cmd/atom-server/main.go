@@ -32,6 +32,7 @@ var (
 	fOutRequestTimeout = flag.Int("timeout", 60, "seconds before an outgoing request times out")
 	fAssetPath         = flag.String("asset", "", "root path to the assets")
 	fHtmlPath          = flag.String("html", "", "root path to the html templates")
+	fShutdownTimeout   = flag.Int("shutdown", 60, "graceful shutdown timeout in seconds")
 )
 
 var logFile *os.File
@@ -111,7 +112,7 @@ func main() {
 		sigint := make(chan os.Signal, 1)
 		signal.Notify(sigint, os.Interrupt, syscall.SIGHUP, syscall.SIGTERM)
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(*fShutdownTimeout))
 		defer cancel()
 		for {
 			switch <-sigint {
