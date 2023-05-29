@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"text/template"
 
+	"github.com/alexshen/juweitong/atom"
 	"github.com/alexshen/juweitong/cmd/atom-server/api"
 	"github.com/gorilla/mux"
+	"github.com/samber/lo"
 )
 
 var gHtmlRoot string
@@ -71,7 +73,21 @@ func htmlDoLike(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	client, err := api.ClientManager().Get(w, r)
+	if err != nil {
+		redirectQRLogin(w)
+		return
+	}
+
 	communities := r.Form["community"]
+	if !lo.Every(
+		lo.Map(client.Communites,
+			func(e atom.Community, i int) string { return e.Name }),
+		communities) {
+		http.Error(w, "invalid communities", http.StatusBadRequest)
+		return
+	}
 	t := getHtml("dolike.tmpl")
 	checkedExecute(t, w, communities)
 }
