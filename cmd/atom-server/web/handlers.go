@@ -56,12 +56,8 @@ func redirectQRLogin(w http.ResponseWriter) {
 
 func htmlCommunity(w http.ResponseWriter, r *http.Request) {
 	client, err := api.ClientManager().Get(w, r)
-	if err == api.ErrUnauthorized {
-		redirectQRLogin(w)
-		return
-	}
 	if err != nil {
-		log.Print(err)
+		redirectQRLogin(w)
 		return
 	}
 	t := getHtml("community.tmpl")
