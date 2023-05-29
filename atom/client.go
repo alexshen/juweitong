@@ -20,15 +20,15 @@ import (
 )
 
 const (
-	domain         = "www.juweitong.cn"
-	baseurl        = "https://" + domain + "/neighbour"
-	clientProtocol = "2.1"
+	kDomain         = "www.juweitong.cn"
+	kBaseUrl        = "https://" + kDomain + "/neighbour"
+	kClientProtocol = "2.1"
 )
 
 const (
-	stateLoggedOut = iota
-	stateScanQRCode
-	stateLoggedIn
+	kStateLoggedOut = iota
+	kStateScanQRCode
+	kStateLoggedIn
 )
 
 var (
@@ -98,7 +98,7 @@ var (
 func Get(req *resty.Request, url string) (*resty.Response, error) {
 	resp, err := req.Get(url)
 	if err == nil && !resp.IsSuccess() {
-		path, _ := strings.CutPrefix(resp.Request.URL, baseurl)
+		path, _ := strings.CutPrefix(resp.Request.URL, kBaseUrl)
 		err = fmt.Errorf("%s: %s", path, resp.Status())
 	}
 	return resp, nil
@@ -107,7 +107,7 @@ func Get(req *resty.Request, url string) (*resty.Response, error) {
 func NewClient() *Client {
 	c := new(Client)
 	c.httpclient = resty.New()
-	c.httpclient.SetBaseURL(baseurl)
+	c.httpclient.SetBaseURL(kBaseUrl)
 	c.curCommunity = -1
 	return c
 }
@@ -119,7 +119,7 @@ func (cli *Client) SetTimeout(d time.Duration) {
 // StartQRLogin starts the qr login process and returns the url of the qr code.
 // If the login already started, ErrQRLoginAlreadyStarted is returned
 func (cli *Client) StartQRLogin(onLogin LoginHandler) (string, error) {
-	if cli.state.Load() == stateScanQRCode {
+	if cli.state.Load() == kStateScanQRCode {
 		return "", ErrQRLoginAlreadyStarted
 	}
 
@@ -142,7 +142,7 @@ func (cli *Client) negotiate() (negotiationResult, error) {
 	_, err := Get(
 		cli.httpclient.R().
 			SetQueryParams(map[string]string{
-				"clientProtocol": clientProtocol,
+				"clientProtocol": kClientProtocol,
 				"_":              strconv.FormatInt(time.Now().UnixMilli(), 10),
 			}).
 			SetResult(&negot),
@@ -158,7 +158,7 @@ func (cli *Client) createLoginConnection(token string) (*websocket.Conn, error) 
 	opts.Set("connectionToken", token)
 	opts.Set("tid", strconv.Itoa(int(rand.Float32()*11)))
 
-	u := "wss://" + domain + "/neighbour/authorize/connect?" + opts.Encode()
+	u := "wss://" + kDomain + "/neighbour/authorize/connect?" + opts.Encode()
 	conn, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {
 		return nil, err
@@ -225,7 +225,7 @@ func (cli *Client) doQRLogin(id string, onLogin LoginHandler) (string, error) {
 					break
 				}
 
-				cli.state.Store(stateScanQRCode)
+				cli.state.Store(kStateScanQRCode)
 				scanning = true
 				initDone <- qrcodeResponse{
 					url: regexp.MustCompile("\"([^\"]+)").FindStringSubmatch(resp.String())[1],
@@ -236,11 +236,11 @@ func (cli *Client) doQRLogin(id string, onLogin LoginHandler) (string, error) {
 					"/home/qr_login_do")
 				if err != nil {
 					log.Printf("qr_login_do: %v", err)
-					cli.state.Store(stateLoggedOut)
+					cli.state.Store(kStateLoggedOut)
 				} else if onLogin != nil {
 					cli.updateCommunities()
 					cli.updateCurrentCommunity()
-					cli.state.Store(stateLoggedIn)
+					cli.state.Store(kStateLoggedIn)
 					onLogin()
 				}
 				break
@@ -295,7 +295,7 @@ func (cli *Client) updateCurrentCommunity() {
 }
 
 func (cli *Client) StopQRLogin() {
-	if cli.state.Load() != stateScanQRCode {
+	if cli.state.Load() != kStateScanQRCode {
 		return
 	}
 
@@ -304,7 +304,7 @@ func (cli *Client) StopQRLogin() {
 }
 
 func (cli *Client) IsLoggedIn() bool {
-	return cli.state.Load() == stateLoggedIn
+	return cli.state.Load() == kStateLoggedIn
 }
 
 func (cli *Client) GetCommunites() []Community {
@@ -458,7 +458,7 @@ func (cli *Client) likePost(apiPath string, favText string, id string) (bool, er
 }
 
 func (cli *Client) ensureLoggedIn() error {
-	if cli.state.Load() != stateLoggedIn {
+	if cli.state.Load() != kStateLoggedIn {
 		return ErrNotLoggedIn
 	}
 	return nil

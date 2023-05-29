@@ -15,10 +15,11 @@ import (
 	"github.com/samber/lo"
 )
 
+var ErrUnauthorized = errors.New("Unauthorized")
+
 var (
-	clientMgr       *AtomClientManager
-	ErrUnauthorized = errors.New("Unauthorized")
-	gStore          sessions.Store
+	gClientMgr *AtomClientManager
+	gStore     sessions.Store
 )
 
 const (
@@ -62,11 +63,11 @@ func GetSession(r *http.Request) *sessions.Session {
 }
 
 func InitClientManager(maxAge time.Duration, outRequestTimeout time.Duration) {
-	if clientMgr != nil {
+	if gClientMgr != nil {
 		panic("InitClientManager called twice")
 	}
 
-	clientMgr = &AtomClientManager{
+	gClientMgr = &AtomClientManager{
 		clients:           make(map[string]*ClientInstance),
 		maxAge:            maxAge,
 		outRequestTimeout: outRequestTimeout,
@@ -74,10 +75,10 @@ func InitClientManager(maxAge time.Duration, outRequestTimeout time.Duration) {
 }
 
 func ClientManager() *AtomClientManager {
-	return clientMgr
+	return gClientMgr
 }
 
-// Get returns an existing atom.Client
+// Get returns an existing atom.Client.
 func (mgr *AtomClientManager) Get(session *sessions.Session) *ClientInstance {
 	value, ok := session.Values[kKeyClientId]
 	if !ok {
@@ -182,7 +183,7 @@ func startQRLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	session, _ := gStore.Get(r, kSessionName)
-	client, err := clientMgr.GetOrNew(session)
+	client, err := gClientMgr.GetOrNew(session)
 	if err != nil {
 		http.Error(w, "", http.StatusInternalServerError)
 		log.Print(err)
@@ -210,7 +211,7 @@ func isLoggedIn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	session, _ := gStore.Get(r, kSessionName)
-	client := clientMgr.Get(session)
+	client := gClientMgr.Get(session)
 	if client == nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
@@ -224,7 +225,7 @@ type apiMustLoggedInFunc func(w http.ResponseWriter, r *http.Request, client *Cl
 func ensureLoggedIn(next apiMustLoggedInFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		session, _ := gStore.Get(r, kSessionName)
-		client := clientMgr.Get(session)
+		client := gClientMgr.Get(session)
 		if client == nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return

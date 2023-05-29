@@ -35,7 +35,7 @@ var (
 	fShutdownTimeout   = flag.Int("shutdown", 60, "graceful shutdown timeout in seconds")
 )
 
-var logFile *os.File
+var gLogFile *os.File
 
 // getCertFile returns the file path containing the cert file and ca bundle
 func getCertFile(caBundlePath, certPath string) (string, error) {
@@ -59,11 +59,11 @@ func reopenLogFile() error {
 		return err
 	}
 
-	if logFile != nil {
-		logFile.Close()
+	if gLogFile != nil {
+		gLogFile.Close()
 	}
-	logFile = f
-	log.SetOutput(logFile)
+	gLogFile = f
+	log.SetOutput(gLogFile)
 
 	return nil
 }
@@ -96,7 +96,7 @@ func main() {
 	if err := reopenLogFile(); err != nil {
 		log.Fatal(err)
 	}
-	logWriter := ioutil.NewRedirectableWriter(logFile)
+	logWriter := ioutil.NewRedirectableWriter(gLogFile)
 
 	server := http.Server{
 		Addr:         ":" + strconv.Itoa(*fPort),
@@ -128,7 +128,7 @@ func main() {
 					break
 				}
 				log.Printf("log file reopened")
-				logWriter.SetWriter(logFile)
+				logWriter.SetWriter(gLogFile)
 			}
 		}
 	}()
@@ -152,7 +152,7 @@ func main() {
 	api.ClientManager().Stop()
 
 	log.Print("server has been shutdown")
-	if logFile != nil {
-		logFile.Close()
+	if gLogFile != nil {
+		gLogFile.Close()
 	}
 }
