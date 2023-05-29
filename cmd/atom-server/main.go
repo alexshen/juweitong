@@ -17,6 +17,8 @@ import (
 	"github.com/alexshen/juweitong/cmd/atom-server/web"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/securecookie"
+	"github.com/gorilla/sessions"
 )
 
 var (
@@ -68,7 +70,11 @@ func reopenLogFile() error {
 func main() {
 	flag.Parse()
 
+	store := sessions.NewCookieStore(securecookie.GenerateRandomKey(32))
+	store.MaxAge(0)
+
 	router := mux.NewRouter()
+	api.Init(store)
 	api.InitClientManager(time.Second*time.Duration(*fMaxAge), time.Second*time.Duration(*fOutRequestTimeout))
 	api.RegisterHandlers(router)
 

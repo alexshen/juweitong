@@ -55,8 +55,8 @@ func redirectQRLogin(w http.ResponseWriter) {
 }
 
 func htmlCommunity(w http.ResponseWriter, r *http.Request) {
-	client, err := api.ClientManager().Get(w, r)
-	if err != nil {
+	client := api.ClientManager().Get(api.GetSession(r))
+	if client == nil {
 		redirectQRLogin(w)
 		return
 	}
@@ -70,8 +70,8 @@ func htmlDoLike(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, err := api.ClientManager().Get(w, r)
-	if err != nil {
+	client := api.ClientManager().Get(api.GetSession(r))
+	if client == nil {
 		redirectQRLogin(w)
 		return
 	}

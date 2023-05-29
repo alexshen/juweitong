@@ -11,16 +11,19 @@ import (
 	"github.com/alexshen/juweitong/atom"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 	"github.com/samber/lo"
 )
 
 var (
 	clientMgr       *AtomClientManager
 	ErrUnauthorized = errors.New("Unauthorized")
+	gStore          sessions.Store
 )
 
 const (
-	sessionIdName = "jwt_id"
+	kKeyClientId = "api.client_id"
+	kSessionName = "api.session"
 )
 
 type ClientInstance struct {
@@ -49,6 +52,15 @@ type AtomClientManager struct {
 	outRequestTimeout time.Duration
 }
 
+func Init(store sessions.Store) {
+	gStore = store
+}
+
+func GetSession(r *http.Request) *sessions.Session {
+	session, _ := gStore.Get(r, kSessionName)
+	return session
+}
+
 func InitClientManager(maxAge time.Duration, outRequestTimeout time.Duration) {
 	if clientMgr != nil {
 		panic("InitClientManager called twice")
@@ -66,48 +78,36 @@ func ClientManager() *AtomClientManager {
 }
 
 // Get returns an existing atom.Client
-func (mgr *AtomClientManager) Get(w http.ResponseWriter, req *http.Request) (*ClientInstance, error) {
-	cookie, err := req.Cookie(sessionIdName)
+func (mgr *AtomClientManager) Get(session *sessions.Session) *ClientInstance {
+	value, ok := session.Values[kKeyClientId]
+	if !ok {
+		return nil
+	}
 	mgr.mtx.Lock()
 	defer mgr.mtx.Unlock()
 
-	if err == http.ErrNoCookie {
-		return nil, ErrUnauthorized
-	}
-	inst, ok := mgr.clients[cookie.Value]
-	if !ok {
-		return nil, ErrUnauthorized
-	}
-	return inst, nil
+	inst, _ := mgr.clients[value.(string)]
+	return inst
 }
 
 // GetOrNew always returns a new atom.Client. If there is already an old atom.Client,
 // StopQRLogin is called, then it is removed.
-func (mgr *AtomClientManager) GetOrNew(w http.ResponseWriter, req *http.Request) (*ClientInstance, error) {
+func (mgr *AtomClientManager) GetOrNew(session *sessions.Session) (*ClientInstance, error) {
 	var id string
+	value, ok := session.Values[kKeyClientId]
 
-	cookie, err := req.Cookie(sessionIdName)
 	mgr.mtx.Lock()
 	defer mgr.mtx.Unlock()
-	if err == nil {
-		// remove the old clients
-		if inst, ok := mgr.clients[cookie.Value]; ok {
-			inst.StopQRLogin()
-			delete(mgr.clients, cookie.Value)
-		}
-		id = cookie.Value
+	if ok {
+		id = value.(string)
+		mgr.removeNoLock(id)
 	} else {
 		newId, err := uuid.NewRandom()
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
 			return nil, err
 		}
 		id = newId.String()
-		http.SetCookie(w, &http.Cookie{
-			Name:  sessionIdName,
-			Value: id,
-			Path:  "/",
-		})
+		session.Values[kKeyClientId] = id
 	}
 	inst := &ClientInstance{id: id, Client: atom.NewClient()}
 	inst.Client.SetTimeout(mgr.outRequestTimeout)
@@ -123,6 +123,10 @@ func (mgr *AtomClientManager) GetOrNew(w http.ResponseWriter, req *http.Request)
 func (mgr *AtomClientManager) remove(id string) {
 	mgr.mtx.Lock()
 	defer mgr.mtx.Unlock()
+	mgr.removeNoLock(id)
+}
+
+func (mgr *AtomClientManager) removeNoLock(id string) {
 	if inst, ok := mgr.clients[id]; ok {
 		inst.StopQRLogin()
 		inst.stopTimer()
@@ -177,8 +181,10 @@ func startQRLogin(w http.ResponseWriter, r *http.Request) {
 		Url string `json:"url"`
 	}
 
-	client, err := clientMgr.GetOrNew(w, r)
+	session, _ := gStore.Get(r, kSessionName)
+	client, err := clientMgr.GetOrNew(session)
 	if err != nil {
+		http.Error(w, "", http.StatusInternalServerError)
 		log.Print(err)
 		return
 	}
@@ -190,6 +196,11 @@ func startQRLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	if err := session.Save(r, w); err != nil {
+		log.Printf("session save failed: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	writeSuccess(w, responseData{qrcodeUrl})
 }
 
@@ -198,10 +209,10 @@ func isLoggedIn(w http.ResponseWriter, r *http.Request) {
 		LoggedIn bool `json:"loggedin"`
 	}
 
-	client, err := clientMgr.Get(w, r)
-	if err != nil {
+	session, _ := gStore.Get(r, kSessionName)
+	client := clientMgr.Get(session)
+	if client == nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		log.Print(err)
 		return
 	}
 
@@ -214,10 +225,10 @@ func getCommunities(w http.ResponseWriter, r *http.Request) {
 		Current int      `json:"current"`
 	}
 
-	client, err := clientMgr.Get(w, r)
-	if err != nil {
+	session, _ := gStore.Get(r, kSessionName)
+	client := clientMgr.Get(session)
+	if client == nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		log.Print(err)
 		return
 	}
 
@@ -235,10 +246,10 @@ func setCurrentCommunity(w http.ResponseWriter, r *http.Request) {
 		Name    string `json:"name"`
 	}
 
-	client, err := clientMgr.Get(w, r)
-	if err != nil {
+	session, _ := gStore.Get(r, kSessionName)
+	client := clientMgr.Get(session)
+	if client == nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		log.Print(err)
 		return
 	}
 
@@ -258,7 +269,7 @@ func setCurrentCommunity(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else if query.Current < 0 || query.Current >= len(client.Communites) {
-		log.Printf("invalid community index: %v", err)
+		log.Printf("invalid community index: %d", query.Current)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -277,8 +288,9 @@ func likePosts(w http.ResponseWriter, r *http.Request) {
 
 	type requestData responseData
 
-	client, err := clientMgr.Get(w, r)
-	if err != nil {
+	session, _ := gStore.Get(r, kSessionName)
+	client := clientMgr.Get(session)
+	if client == nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
