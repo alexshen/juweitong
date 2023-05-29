@@ -435,9 +435,9 @@ func (cli *Client) getPostIds(apiPath string, queryParams map[string]string, cou
 	if err != nil {
 		return nil, err
 	}
-	return doc.Find("body > div").Map(func(i int, e *goquery.Selection) string {
-		value, _ := e.Attr("id")
-		return value[2:]
+	return doc.Find("body > div > a").Map(func(i int, e *goquery.Selection) string {
+		value, _ := e.Attr("href")
+		return value[strings.IndexRune(value, '=')+1 : strings.LastIndex(value, "'")]
 	}), nil
 }
 
