@@ -1,3 +1,4 @@
+<!-- vim: set tw=0 wm=0: -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
 <script src="https://res.wx.qq.com/t/wx_fed/weui.js/res/1.2.18/weui.min.js"></script>
 <script src="./static/script/common.js"></script>
@@ -120,8 +121,9 @@
     }
     .step {
         display: flex;
-        margin-left: 19px;
-        width: 170px;
+        margin-left: 27px;
+        width: 180px;
+        margin-top: 5px;
         align-items: center;
     }
     .step * {
@@ -152,9 +154,9 @@
 
 {{define "state_icon"}}
 <div class="state-icon">
-    <i role="img" name="loading" class="weui-mask-loading icon-loading"></i>
-    <i role="img" name="success" class="weui-icon-success"></i>
-    <i role="img" name="error" class="weui-icon-warn icon-error"></i>
+    <i role="img" name="loading" class="weui-mask-loading icon-loading" {{if ne . true}} style="width:24px;height:24px"{{end}}></i>
+    <i role="img" name="success" class="weui-icon-success" {{if eq . true}}style="width:18px;height:18px"{{end}}></i>
+    <i role="img" name="error" class="weui-icon-warn" {{if eq . true}}style="width:18px;height:18px"{{end}}></i>
 </div>
 {{end}}
 
@@ -164,36 +166,37 @@
         <label class="weui-cell weui-check__label">
             <div class="community">
                 <div name="root">
-                    {{template "state_icon"}}
+                    {{template "state_icon" false}}
                     <img class="community-icon" src="./static/image/community.png"/>
                     <label>{{.}}</label>
                 </div>
                 <div class="step" kind="notices">
                     <img class="step-icon" src="./static/image/notices.png"/>
                     <label name="name">公告</label>
+                    <span class="step-space"></span>
                     <label name="num"></label>
-                    {{template "state_icon"}}
+                    {{template "state_icon" true}}
                 </div>
                 <div class="step" kind="moments">
                     <img class="step-icon" src="./static/image/moments.png"/>
                     <label name="name">左邻右舍</label>
                     <span class="step-space"></span>
                     <label name="num"></label>
-                    {{template "state_icon"}}
+                    {{template "state_icon" true}}
                 </div>
                 <div class="step" kind="ccpposts">
                     <img class="step-icon" src="./static/image/ccpposts.png"/>
                     <label name="name">党建园地</label>
                     <span class="step-space"></span>
                     <label name="num"></label>
-                    {{template "state_icon"}}
+                    {{template "state_icon" true}}
                 </div>
                 <div class="step" kind="proposals">
                     <img class="step-icon" src="./static/image/proposals.png"/>
                     <label name="name">议事厅</label>
                     <span class="step-space"></span>
                     <label name="num"></label>
-                    {{template "state_icon"}}
+                    {{template "state_icon" true}}
                 </div>
             </div>
         </label>
