@@ -144,9 +144,9 @@ func (mgr *AtomClientManager) Stop() {
 func RegisterHandlers(r *mux.Router) {
 	r.HandleFunc("/api/startqrlogin", startQRLogin).Methods(http.MethodPost)
 	r.HandleFunc("/api/isloggedin", isLoggedIn).Methods(http.MethodGet)
-	r.HandleFunc("/api/getcommunities", getCommunities).Methods(http.MethodGet)
-	r.HandleFunc("/api/setcurrentcommunity", setCurrentCommunity).Methods(http.MethodPost)
-	r.HandleFunc("/api/like{kind:notices|moments|ccpposts|proposals}", likePosts).Methods(http.MethodPost)
+	r.HandleFunc("/api/getcommunities", ensureLoggedIn(getCommunities)).Methods(http.MethodGet)
+	r.HandleFunc("/api/setcurrentcommunity", ensureLoggedIn(setCurrentCommunity)).Methods(http.MethodPost)
+	r.HandleFunc("/api/like{kind:notices|moments|ccpposts|proposals}", ensureLoggedIn(likePosts)).Methods(http.MethodPost)
 }
 
 type responseMessage struct {
@@ -219,17 +219,29 @@ func isLoggedIn(w http.ResponseWriter, r *http.Request) {
 	writeSuccess(w, responseData{client.IsLoggedIn()})
 }
 
-func getCommunities(w http.ResponseWriter, r *http.Request) {
+type apiMustLoggedInFunc func(w http.ResponseWriter, r *http.Request, client *ClientInstance)
+
+func ensureLoggedIn(next apiMustLoggedInFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		session, _ := gStore.Get(r, kSessionName)
+		client := clientMgr.Get(session)
+		if client == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		if !client.IsLoggedIn() {
+			http.Error(w, "not logged in", http.StatusBadRequest)
+			return
+		}
+		next(w, r, client)
+	}
+}
+
+func getCommunities(w http.ResponseWriter, r *http.Request, client *ClientInstance) {
 	type responseData struct {
 		Names   []string `json:"names"`
 		Current int      `json:"current"`
-	}
-
-	session, _ := gStore.Get(r, kSessionName)
-	client := clientMgr.Get(session)
-	if client == nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
 	}
 
 	writeSuccess(w, responseData{
@@ -240,17 +252,10 @@ func getCommunities(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func setCurrentCommunity(w http.ResponseWriter, r *http.Request) {
+func setCurrentCommunity(w http.ResponseWriter, r *http.Request, client *ClientInstance) {
 	type requestData struct {
 		Current int    `json:"current,omitempty"`
 		Name    string `json:"name"`
-	}
-
-	session, _ := gStore.Get(r, kSessionName)
-	client := clientMgr.Get(session)
-	if client == nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
 	}
 
 	query := requestData{Current: -1}
@@ -281,19 +286,12 @@ func setCurrentCommunity(w http.ResponseWriter, r *http.Request) {
 	writeSuccess(w, nil)
 }
 
-func likePosts(w http.ResponseWriter, r *http.Request) {
+func likePosts(w http.ResponseWriter, r *http.Request, client *ClientInstance) {
 	type responseData struct {
 		Count int `json:"count"`
 	}
 
 	type requestData responseData
-
-	session, _ := gStore.Get(r, kSessionName)
-	client := clientMgr.Get(session)
-	if client == nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
 
 	var query requestData
 	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
