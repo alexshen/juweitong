@@ -17,6 +17,12 @@ func SetHtmlRoot(root string) {
 	gHtmlRoot = root
 }
 
+func checkedExecute(t *template.Template, w http.ResponseWriter, data any) {
+	if err := t.Execute(w, data); err != nil {
+		log.Print(err)
+	}
+}
+
 func RegisterHandlers(r *mux.Router) {
 	r.HandleFunc("/qr_login", htmlQRLogin)
 	r.HandleFunc("/community", htmlCommunity)
@@ -35,7 +41,7 @@ func getHtml(bodyFile string) *template.Template {
 
 func htmlQRLogin(w http.ResponseWriter, r *http.Request) {
 	t := getHtml("qr_login.tmpl")
-	t.Execute(w, nil)
+	checkedExecute(t, w, nil)
 }
 
 func redirectQRLogin(w http.ResponseWriter) {
@@ -57,7 +63,7 @@ func htmlCommunity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t := getHtml("community.tmpl")
-	t.Execute(w, client.Communites)
+	checkedExecute(t, w, client.Communites)
 }
 
 func htmlDoLike(w http.ResponseWriter, r *http.Request) {
@@ -67,5 +73,5 @@ func htmlDoLike(w http.ResponseWriter, r *http.Request) {
 	}
 	communities := r.Form["community"]
 	t := getHtml("dolike.tmpl")
-	t.Execute(w, communities)
+	checkedExecute(t, w, communities)
 }
