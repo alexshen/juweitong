@@ -61,7 +61,7 @@ func htmlCommunity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t := getHtml("community.tmpl")
-	checkedExecute(t, w, client.Communites)
+	checkedExecute(t, w, client.Communities())
 }
 
 func htmlDoLike(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +78,7 @@ func htmlDoLike(w http.ResponseWriter, r *http.Request) {
 
 	communities := r.Form["community"]
 	if !lo.Every(
-		lo.Map(client.Communites,
+		lo.Map(client.Communities(),
 			func(e atom.Community, i int) string { return e.Name }),
 		communities) {
 		http.Error(w, "invalid communities", http.StatusBadRequest)

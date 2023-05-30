@@ -42,8 +42,7 @@ type Community struct {
 }
 
 type Client struct {
-	Communites []Community
-
+	communities  []Community
 	state        atomic.Int32
 	httpclient   *resty.Client
 	loginConn    *websocket.Conn
@@ -268,7 +267,7 @@ func (cli *Client) updateCommunities() {
 		log.Println(err)
 		return
 	}
-	cli.Communites = res[0].Data
+	cli.communities = res[0].Data
 
 }
 
@@ -289,7 +288,7 @@ func (cli *Client) updateCurrentCommunity() {
 	}
 
 	curCommName := doc.Find("#changeMember span").First().Text()
-	_, cli.curCommunity, _ = lo.FindIndexOf(cli.Communites, func(e Community) bool {
+	_, cli.curCommunity, _ = lo.FindIndexOf(cli.communities, func(e Community) bool {
 		return e.Name == curCommName
 	})
 }
@@ -307,8 +306,8 @@ func (cli *Client) IsLoggedIn() bool {
 	return cli.state.Load() == kStateLoggedIn
 }
 
-func (cli *Client) GetCommunites() []Community {
-	return cli.Communites
+func (cli *Client) Communities() []Community {
+	return cli.communities
 }
 
 // SetCurrentCommunity sets the current community at the given index
@@ -318,7 +317,7 @@ func (cli *Client) SetCurrentCommunity(i int) error {
 	}
 	_, err := Get(cli.httpclient.R().
 		SetQueryParam("seed", strconv.FormatInt(time.Now().UnixMilli(), 10)),
-		"/api/member/switch/"+cli.Communites[i].Id)
+		"/api/member/switch/"+cli.communities[i].Id)
 	if err != nil {
 		return err
 	}
@@ -334,7 +333,7 @@ func (cli *Client) CurrentCommunity() Community {
 	if cli.curCommunity == -1 {
 		return Community{}
 	}
-	return cli.Communites[cli.curCommunity]
+	return cli.communities[cli.curCommunity]
 }
 
 // LikeNotices visits count of the latest notices and returns the number of

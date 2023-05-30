@@ -29,11 +29,11 @@ func main() {
 	log.Printf("QR Code: %s\n", url)
 	open.Run(url)
 	<-loggedIn
-	communities := rotateCopy(client.Communites, client.CurrentCommunityIndex())
+	communities := rotateCopy(client.Communities(), client.CurrentCommunityIndex())
 	for i, comm := range communities {
 		if i != 0 {
 			log.Printf("Switching to community: %s", comm.Name)
-			j := lo.IndexOf(client.Communites, comm)
+			j := lo.IndexOf(client.Communities(), comm)
 			if err := client.SetCurrentCommunity(j); err != nil {
 				log.Print(err)
 				continue

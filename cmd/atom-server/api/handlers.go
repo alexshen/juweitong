@@ -245,7 +245,7 @@ func getCommunities(w http.ResponseWriter, r *http.Request, client *ClientInstan
 	}
 
 	writeSuccess(w, responseData{
-		Names: lo.Map(client.Communites, func(e atom.Community, i int) string {
+		Names: lo.Map(client.Communities(), func(e atom.Community, i int) string {
 			return e.Name
 		}),
 		Current: client.CurrentCommunityIndex(),
@@ -267,13 +267,13 @@ func setCurrentCommunity(w http.ResponseWriter, r *http.Request, client *ClientI
 
 	index := query.Current
 	if query.Current == -1 {
-		_, index, _ = lo.FindIndexOf(client.Communites, func(e atom.Community) bool { return e.Name == query.Name })
+		_, index, _ = lo.FindIndexOf(client.Communities(), func(e atom.Community) bool { return e.Name == query.Name })
 		if index == -1 {
 			log.Printf("invalid community name: %s", query.Name)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-	} else if query.Current < 0 || query.Current >= len(client.Communites) {
+	} else if query.Current < 0 || query.Current >= len(client.Communities()) {
 		log.Printf("invalid community index: %d", query.Current)
 		w.WriteHeader(http.StatusBadRequest)
 		return
