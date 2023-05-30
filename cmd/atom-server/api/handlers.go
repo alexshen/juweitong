@@ -91,9 +91,8 @@ func (mgr *AtomClientManager) Get(session *sessions.Session) *ClientInstance {
 	return inst
 }
 
-// GetOrNew always returns a new atom.Client. If there is already an old atom.Client,
-// StopQRLogin is called, then it is removed.
-func (mgr *AtomClientManager) GetOrNew(session *sessions.Session) (*ClientInstance, error) {
+// New returns a new atom.Client.
+func (mgr *AtomClientManager) New(session *sessions.Session) (*ClientInstance, error) {
 	var id string
 	value, ok := session.Values[kKeyClientId]
 
@@ -183,7 +182,7 @@ func startQRLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	session, _ := gStore.Get(r, kSessionName)
-	client, err := gClientMgr.GetOrNew(session)
+	client, err := gClientMgr.New(session)
 	if err != nil {
 		http.Error(w, "", http.StatusInternalServerError)
 		log.Print(err)
