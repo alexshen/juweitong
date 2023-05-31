@@ -6,7 +6,15 @@
     const IGNORE_ERROR = new Error();
 
     function request(url, { success, error = showErrorTip, ...options }) {
-        fetch(url, options)
+        const opts = { ...options };
+        opts.headers = opts.headers || {};
+        if (!opts.headers['Content-Type']) {
+            opts.headers['Content-Type'] = 'application/json';
+        }
+        if (typeof opts.body === 'object') {
+            opts.body = JSON.stringify(opts.body);
+        }
+        fetch(url, opts)
             .then(function (response) {
                 if (!response.ok) {
                     if (response.status === 401) {

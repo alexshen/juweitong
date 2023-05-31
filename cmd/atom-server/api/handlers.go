@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/alexshen/juweitong/atom"
-	"github.com/google/uuid"
+	"github.com/alexshen/juweitong/cmd/atom-server/dal"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/samber/lo"
@@ -20,6 +20,7 @@ var ErrUnauthorized = errors.New("Unauthorized")
 var (
 	gClientMgr *AtomClientManager
 	gStore     sessions.Store
+	gClientDAO dal.ClientsDAO
 )
 
 const (
@@ -51,10 +52,13 @@ type AtomClientManager struct {
 	clients           map[string]*ClientInstance
 	maxAge            time.Duration
 	outRequestTimeout time.Duration
+	clientDao         dal.ClientsDAO
+	likedPostsDAO     dal.LikedPostsDAO
 }
 
-func Init(store sessions.Store) {
+func Init(store sessions.Store, clientDAO dal.ClientsDAO) {
 	gStore = store
+	gClientDAO = clientDAO
 }
 
 func GetSession(r *http.Request) *sessions.Session {
@@ -62,7 +66,10 @@ func GetSession(r *http.Request) *sessions.Session {
 	return session
 }
 
-func InitClientManager(maxAge time.Duration, outRequestTimeout time.Duration) {
+func InitClientManager(maxAge time.Duration,
+	outRequestTimeout time.Duration,
+	clientsDao dal.ClientsDAO,
+	likedPostsDAO dal.LikedPostsDAO) {
 	if gClientMgr != nil {
 		panic("InitClientManager called twice")
 	}
@@ -71,7 +78,30 @@ func InitClientManager(maxAge time.Duration, outRequestTimeout time.Duration) {
 		clients:           make(map[string]*ClientInstance),
 		maxAge:            maxAge,
 		outRequestTimeout: outRequestTimeout,
+		clientDao:         clientsDao,
+		likedPostsDAO:     likedPostsDAO,
 	}
+}
+
+type clientLikedPostsHistory struct {
+	clientId string
+	dao      dal.LikedPostsDAO
+}
+
+func (o *clientLikedPostsHistory) Has(post atom.LikedPost) (bool, error) {
+	return o.dao.Has(dal.LikedPost{
+		ClientId:    o.clientId,
+		CommunityId: post.CommunityId,
+		PostId:      post.PostId,
+	})
+}
+
+func (o *clientLikedPostsHistory) Add(post atom.LikedPost) error {
+	return o.dao.Add(dal.LikedPost{
+		ClientId:    o.clientId,
+		CommunityId: post.CommunityId,
+		PostId:      post.PostId,
+	})
 }
 
 func ClientManager() *AtomClientManager {
@@ -92,24 +122,18 @@ func (mgr *AtomClientManager) Get(session *sessions.Session) *ClientInstance {
 }
 
 // New returns a new atom.Client.
-func (mgr *AtomClientManager) New(session *sessions.Session) (*ClientInstance, error) {
-	var id string
+func (mgr *AtomClientManager) New(id string, session *sessions.Session) (*ClientInstance, error) {
 	value, ok := session.Values[kKeyClientId]
 
 	mgr.mtx.Lock()
 	defer mgr.mtx.Unlock()
 	if ok {
-		id = value.(string)
-		mgr.removeNoLock(id)
+		mgr.removeNoLock(value.(string))
 	} else {
-		newId, err := uuid.NewRandom()
-		if err != nil {
-			return nil, err
-		}
-		id = newId.String()
 		session.Values[kKeyClientId] = id
 	}
-	inst := &ClientInstance{id: id, Client: atom.NewClient()}
+	dao := clientLikedPostsHistory{id, mgr.likedPostsDAO}
+	inst := &ClientInstance{id: id, Client: atom.NewClient(&dao)}
 	inst.Client.SetTimeout(mgr.outRequestTimeout)
 	inst.touch(mgr.maxAge, func() {
 		mgr.remove(id)
@@ -147,6 +171,7 @@ func RegisterHandlers(r *mux.Router) {
 	r.HandleFunc("/api/getcommunities", ensureLoggedIn(getCommunities)).Methods(http.MethodGet)
 	r.HandleFunc("/api/setcurrentcommunity", ensureLoggedIn(setCurrentCommunity)).Methods(http.MethodPost)
 	r.HandleFunc("/api/like{kind:notices|moments|ccpposts|proposals}", ensureLoggedIn(likePosts)).Methods(http.MethodPost)
+	r.HandleFunc("/api/newclientid", newClientId).Methods(http.MethodPost)
 }
 
 type responseMessage struct {
@@ -176,13 +201,44 @@ func writeError(w http.ResponseWriter, err error) {
 	})
 }
 
+func newClientId(w http.ResponseWriter, r *http.Request) {
+	id, err := gClientDAO.Create()
+	if err != nil {
+		log.Printf("faild to create client id: %v", err)
+		http.Error(w, "failed to create client id", http.StatusInternalServerError)
+		return
+	}
+	log.Printf("created client id: %s", id)
+	writeSuccess(w, struct {
+		Id string `json:"id"`
+	}{id})
+}
+
 func startQRLogin(w http.ResponseWriter, r *http.Request) {
 	type responseData struct {
 		Url string `json:"url"`
 	}
 
+	var requestData = struct {
+		Id string `json:"id"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	ok, err := gClientDAO.Has(requestData.Id)
+	if err != nil {
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		http.Error(w, "invalid client id", http.StatusBadRequest)
+		return
+	}
+
 	session, _ := gStore.Get(r, kSessionName)
-	client, err := gClientMgr.New(session)
+	client, err := gClientMgr.New(requestData.Id, session)
 	if err != nil {
 		http.Error(w, "", http.StatusInternalServerError)
 		log.Print(err)

@@ -41,6 +41,26 @@ type Community struct {
 	Id   string `json:"key"`
 }
 
+type LikedPost struct {
+	CommunityId string
+	PostId      string
+}
+
+type LikedPostsHistory interface {
+	Has(post LikedPost) (bool, error)
+	Add(post LikedPost) error
+}
+
+type NullLikedPostsHistory struct{}
+
+func (o NullLikedPostsHistory) Has(post LikedPost) (bool, error) {
+	return false, nil
+}
+
+func (o NullLikedPostsHistory) Add(post LikedPost) error {
+	return nil
+}
+
 type Client struct {
 	communities  []Community
 	state        atomic.Int32
@@ -48,6 +68,7 @@ type Client struct {
 	loginConn    *websocket.Conn
 	loginDone    chan struct{}
 	curCommunity int
+	history      LikedPostsHistory
 }
 
 type negotiationResult struct {
@@ -103,11 +124,15 @@ func Get(req *resty.Request, url string) (*resty.Response, error) {
 	return resp, nil
 }
 
-func NewClient() *Client {
-	c := new(Client)
-	c.httpclient = resty.New()
+// NewClient creates a client with the DAO. A DAO is used for speeding up
+// the liking process by ignoring already liked posts.
+func NewClient(history LikedPostsHistory) *Client {
+	c := &Client{
+		httpclient:   resty.New(),
+		curCommunity: -1,
+		history:      history,
+	}
 	c.httpclient.SetBaseURL(kBaseUrl)
-	c.curCommunity = -1
 	return c
 }
 
@@ -403,17 +428,32 @@ func (cli *Client) LikeProposals(count int) int {
 }
 
 func (cli *Client) likePosts(ids []string, config likePostConfig) int {
+	communityId := cli.CurrentCommunity().Id
+	newIds := lo.Filter(ids, func(id string, i int) bool {
+		res, err := cli.history.Has(LikedPost{communityId, id})
+		if err != nil {
+			log.Printf("failed to check liked post: %v", err)
+			return false
+		}
+		return !res
+	})
 	wg := sync.WaitGroup{}
 	n := atomic.Int32{}
-	for _, id := range ids {
+	for _, id := range newIds {
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
 			liked, err := cli.likePost(config.viewPostApiPath, config.favText, id)
 			if err != nil {
 				log.Print(err)
-			} else if liked {
-				n.Add(1)
+			} else {
+				if err := cli.history.Add(LikedPost{communityId, id}); err != nil {
+					log.Printf("failed to add liked post: %v", err)
+					return
+				}
+				if liked {
+					n.Add(1)
+				}
 			}
 		}(id)
 	}

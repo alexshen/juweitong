@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/alexshen/juweitong/cmd/atom-server/api"
+	"github.com/alexshen/juweitong/cmd/atom-server/dal"
 	"github.com/alexshen/juweitong/cmd/atom-server/ioutil"
 	myioutil "github.com/alexshen/juweitong/cmd/atom-server/ioutil"
 	"github.com/alexshen/juweitong/cmd/atom-server/web"
@@ -19,6 +20,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 var (
@@ -33,6 +36,7 @@ var (
 	fAssetPath         = flag.String("asset", "", "root path to the assets")
 	fHtmlPath          = flag.String("html", "", "root path to the html templates")
 	fShutdownTimeout   = flag.Int("shutdown", 60, "graceful shutdown timeout in seconds")
+	fDBPath            = flag.String("db", "", "path to the sqlite3 database")
 )
 
 var gLogFile *os.File
@@ -74,9 +78,27 @@ func main() {
 	store := sessions.NewCookieStore(securecookie.GenerateRandomKey(32))
 	store.MaxAge(0)
 
+	var clientsDAO dal.ClientsDAO
+	var likedPostsDAO dal.LikedPostsDAO
+	if *fDBPath != "" {
+		log.Printf("using db at path %s", *fDBPath)
+		db, err := gorm.Open(sqlite.Open(*fDBPath), &gorm.Config{})
+		if err != nil {
+			log.Fatal(err)
+		}
+		clientsDAO = dal.NewDBClientsDAO(db)
+		likedPostsDAO = dal.NewDBLikedPostsDAO(db)
+	} else {
+		log.Printf("running without using db")
+		clientsDAO = dal.NullClientsDAO{}
+		likedPostsDAO = dal.NullLikedPostsDAO{}
+	}
+
 	router := mux.NewRouter()
-	api.Init(store)
-	api.InitClientManager(time.Second*time.Duration(*fMaxAge), time.Second*time.Duration(*fOutRequestTimeout))
+	api.Init(store, clientsDAO)
+	api.InitClientManager(time.Second*time.Duration(*fMaxAge),
+		time.Second*time.Duration(*fOutRequestTimeout),
+		clientsDAO, likedPostsDAO)
 	api.RegisterHandlers(router)
 
 	// register assets handlers

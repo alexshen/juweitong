@@ -43,6 +43,41 @@
         });
     }
 
+    function saveClientId(id) {
+        localStorage.setItem('client_id', id);
+    }
+
+    function loadClientId() {
+        return localStorage.getItem('client_id') || '';
+    }
+
+    function newClientId(success, error = showError) {
+        common.request('/api/newclientid', {
+            method: 'post',
+            success(data) {
+                console.log('created client id: ' + data.id);
+                saveClientId(data.id);
+                success(data.id);
+            },
+            error(e) {
+                error('获取用户id失败: ' + e);
+            }
+        });
+    }
+
+    function startQRLogin(id) {
+        common.request('/api/startqrlogin', { 
+            method: 'post',
+            body: { id },
+            success(data) {
+                const imgQRCode = $('#qr_code');
+                imgQRCode.attr('src', data.url);
+                imgQRCode.show();
+            },
+            error: showError
+        });
+    }
+
     $(function() {
         showLoading({ show: true });
         const imgQRCode = $('#qr_code');
@@ -55,14 +90,13 @@
             showError();
         });
 
-        common.request('/api/startqrlogin', { 
-            method: 'post',
-            success(data) {
-                imgQRCode.attr('src', data.url);
-                imgQRCode.show();
-            },
-            error: showError
-        });
+        const id = loadClientId();
+        if (id === '') {
+            console.log('no id found, create a new client id');
+            newClientId(startQRLogin);
+        } else {
+            startQRLogin(id);
+        }
     });
 </script>
 <div class="page__hd">
