@@ -17,7 +17,7 @@ func rotateCopy[S ~[]E, E any](s S, i int) S {
 }
 
 func main() {
-	client := atom.NewClient()
+	client := atom.NewClient(atom.NullLikedPostsHistory{})
 	loggedIn := make(chan struct{})
 	url, err := client.StartQRLogin(func() {
 		log.Print("Logged in")
