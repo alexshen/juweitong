@@ -261,11 +261,13 @@ func (cli *Client) doQRLogin(id string, onLogin LoginHandler) (string, error) {
 				if err != nil {
 					log.Printf("qr_login_do: %v", err)
 					cli.state.Store(kStateLoggedOut)
-				} else if onLogin != nil {
+				} else {
 					cli.updateCommunities()
 					cli.updateCurrentCommunity()
 					cli.state.Store(kStateLoggedIn)
-					onLogin()
+					if onLogin != nil {
+						onLogin()
+					}
 				}
 				break
 			}
