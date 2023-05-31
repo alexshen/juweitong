@@ -75,6 +75,10 @@ func reopenLogFile() error {
 func main() {
 	flag.Parse()
 
+	if err := reopenLogFile(); err != nil {
+		log.Fatal(err)
+	}
+
 	store := sessions.NewCookieStore(securecookie.GenerateRandomKey(32))
 	store.MaxAge(0)
 
@@ -115,9 +119,6 @@ func main() {
 	web.SetHtmlRoot(*fHtmlPath)
 	web.RegisterHandlers(router)
 
-	if err := reopenLogFile(); err != nil {
-		log.Fatal(err)
-	}
 	logWriter := ioutil.NewRedirectableWriter(gLogFile)
 
 	server := http.Server{
