@@ -85,6 +85,11 @@ type likePostConfig struct {
 	listPostParams  map[string]string // query params for getting list of posts
 }
 
+type post struct {
+	viewId string // the id for reading
+	likeId string // the id for liking
+}
+
 var (
 	noticeConfig = likePostConfig{
 		"/community/title_view?title=",
@@ -120,6 +125,22 @@ func Get(req *resty.Request, url string) (*resty.Response, error) {
 	if err == nil && !resp.IsSuccess() {
 		path, _ := strings.CutPrefix(resp.Request.URL, kBaseUrl)
 		err = fmt.Errorf("%s: %s", path, resp.Status())
+	}
+	return resp, nil
+}
+
+func getWithJsonError(req *resty.Request, url string) (*resty.Response, error) {
+	var apiResult = struct {
+		Error   bool   `json:"error"`
+		Message string `json:"message"`
+	}{}
+
+	resp, err := Get(req.SetResult(&apiResult), url)
+	if err != nil {
+		return nil, err
+	}
+	if apiResult.Error {
+		return nil, errors.New(apiResult.Message)
 	}
 	return resp, nil
 }
@@ -381,7 +402,7 @@ func (cli *Client) LikeNotices(count int) int {
 		return 0
 	}
 
-	ids, err := cli.getPostIds(
+	posts, err := cli.getPosts(
 		noticeConfig.listPostApiPath,
 		noticeConfig.listPostParams,
 		count)
@@ -389,7 +410,7 @@ func (cli *Client) LikeNotices(count int) int {
 		log.Print(err)
 		return 0
 	}
-	return cli.likePosts(ids, noticeConfig)
+	return cli.likePosts(posts, noticeConfig)
 }
 
 func (cli *Client) LikeMoments(count int) int {
@@ -397,7 +418,7 @@ func (cli *Client) LikeMoments(count int) int {
 		return 0
 	}
 
-	ids, err := cli.getPostIds(
+	posts, err := cli.getPosts(
 		momentsConfig.listPostApiPath,
 		momentsConfig.listPostParams,
 		count)
@@ -405,7 +426,7 @@ func (cli *Client) LikeMoments(count int) int {
 		log.Print(err)
 		return 0
 	}
-	return cli.likePosts(ids, momentsConfig)
+	return cli.likePosts(posts, momentsConfig)
 }
 
 func (cli *Client) LikeCCPPosts(count int) int {
@@ -413,7 +434,7 @@ func (cli *Client) LikeCCPPosts(count int) int {
 		return 0
 	}
 
-	ids, err := cli.getPostIds(
+	posts, err := cli.getPosts(
 		ccpNoticeConfig.listPostApiPath,
 		ccpNoticeConfig.listPostParams,
 		count)
@@ -421,7 +442,7 @@ func (cli *Client) LikeCCPPosts(count int) int {
 		log.Print(err)
 		return 0
 	}
-	return cli.likePosts(ids, ccpNoticeConfig)
+	return cli.likePosts(posts, ccpNoticeConfig)
 }
 
 func (cli *Client) LikeProposals(count int) int {
@@ -429,7 +450,7 @@ func (cli *Client) LikeProposals(count int) int {
 		return 0
 	}
 
-	ids, err := cli.getPostIds(
+	posts, err := cli.getPosts(
 		proposalConfig.listPostApiPath,
 		proposalConfig.listPostParams,
 		count)
@@ -437,13 +458,13 @@ func (cli *Client) LikeProposals(count int) int {
 		log.Print(err)
 		return 0
 	}
-	return cli.likePosts(ids, proposalConfig)
+	return cli.likePosts(posts, proposalConfig)
 }
 
-func (cli *Client) likePosts(ids []string, config likePostConfig) int {
+func (cli *Client) likePosts(posts []post, config likePostConfig) int {
 	communityId := cli.CurrentCommunity().MemberId
-	newIds := lo.Filter(ids, func(id string, i int) bool {
-		res, err := cli.history.Has(LikedPost{communityId, id})
+	newPosts := lo.Filter(posts, func(p post, i int) bool {
+		res, err := cli.history.Has(LikedPost{communityId, p.likeId})
 		if err != nil {
 			log.Printf("failed to check liked post: %v", err)
 			return false
@@ -452,15 +473,15 @@ func (cli *Client) likePosts(ids []string, config likePostConfig) int {
 	})
 	wg := sync.WaitGroup{}
 	n := atomic.Int32{}
-	for _, id := range newIds {
+	for _, p := range newPosts {
 		wg.Add(1)
-		go func(id string) {
+		go func(p post) {
 			defer wg.Done()
-			liked, err := cli.likePost(config.viewPostApiPath, config.favText, id)
+			liked, err := cli.likePost(config.viewPostApiPath, config.favText, p)
 			if err != nil {
 				log.Print(err)
 			} else {
-				if err := cli.history.Add(LikedPost{communityId, id}); err != nil {
+				if err := cli.history.Add(LikedPost{communityId, p.likeId}); err != nil {
 					log.Printf("failed to add liked post: %v", err)
 					return
 				}
@@ -468,14 +489,14 @@ func (cli *Client) likePosts(ids []string, config likePostConfig) int {
 					n.Add(1)
 				}
 			}
-		}(id)
+		}(p)
 	}
 	wg.Wait()
 	return int(n.Load())
 }
 
-// getPostIds returns count of ids of the latest notices
-func (cli *Client) getPostIds(apiPath string, queryParams map[string]string, count int) ([]string, error) {
+// getPosts returns count of posts of the latest notices
+func (cli *Client) getPosts(apiPath string, queryParams map[string]string, count int) ([]post, error) {
 	resp, err := Get(
 		cli.httpclient.R().
 			SetQueryParams(queryParams).
@@ -487,16 +508,23 @@ func (cli *Client) getPostIds(apiPath string, queryParams map[string]string, cou
 	if err != nil {
 		return nil, err
 	}
-	return doc.Find("body > div > a").Map(func(i int, e *goquery.Selection) string {
-		value, _ := e.Attr("href")
-		return value[strings.IndexRune(value, '=')+1 : strings.LastIndex(value, "'")]
-	}), nil
+
+	var posts []post
+	doc.Find("body > div").Each(func(i int, e *goquery.Selection) {
+		idValue, _ := e.Attr("id")
+		hrefValue, _ := e.Find("a").First().Attr("href")
+		posts = append(posts, post{
+			viewId: hrefValue[strings.IndexRune(hrefValue, '=')+1 : strings.LastIndex(hrefValue, "'")],
+			likeId: idValue[2:],
+		})
+	})
+	return posts, nil
 }
 
-func (cli *Client) likePost(apiPath string, favText string, id string) (bool, error) {
-	resp, err := Get(cli.httpclient.R(), apiPath+id)
+func (cli *Client) likePost(apiPath string, favText string, p post) (bool, error) {
+	resp, err := getWithJsonError(cli.httpclient.R(), apiPath+p.viewId)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("get post error: %v, %s", err, p.viewId)
 	}
 
 	// only like when the post has not been liked
@@ -505,8 +533,11 @@ func (cli *Client) likePost(apiPath string, favText string, id string) (bool, er
 		return false, nil
 	}
 
-	_, err = Get(cli.httpclient.R().SetQueryParam("title", id), "/community/title_like")
-	return err == nil, err
+	_, err = getWithJsonError(cli.httpclient.R().SetQueryParam("title", p.likeId), "/community/title_like")
+	if err != nil {
+		return false, fmt.Errorf("like error: %v, %s", err, p.likeId)
+	}
+	return true, nil
 }
 
 func (cli *Client) ensureLoggedIn() error {
