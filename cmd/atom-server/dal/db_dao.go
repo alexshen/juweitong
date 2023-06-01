@@ -1,21 +1,8 @@
 package dal
 
 import (
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
-
-type dbClientsDAO struct {
-	db *gorm.DB
-}
-
-type client struct {
-	ID string
-}
-
-func NewDBClientsDAO(db *gorm.DB) ClientsDAO {
-	return &dbClientsDAO{db}
-}
 
 func exists(db *gorm.DB, statement string, args ...any) (bool, error) {
 	var result int
@@ -29,24 +16,6 @@ func exists(db *gorm.DB, statement string, args ...any) (bool, error) {
 	return result == 1, nil
 }
 
-func (o *dbClientsDAO) Has(id string) (bool, error) {
-	return exists(o.db, "SELECT 1 FROM clients WHERE id = ?", id)
-}
-
-func (o *dbClientsDAO) Create() (string, error) {
-	for {
-		id, err := uuid.NewRandom()
-		if err != nil {
-			return "", err
-		}
-		c := client{id.String()}
-		result := o.db.Create(&c)
-		if result.Error != gorm.ErrDuplicatedKey {
-			return c.ID, nil
-		}
-	}
-}
-
 type dbLikedPostsDAO struct {
 	db *gorm.DB
 }
@@ -56,8 +25,8 @@ func NewDBLikedPostsDAO(db *gorm.DB) LikedPostsDAO {
 }
 
 func (o *dbLikedPostsDAO) Has(record LikedPost) (bool, error) {
-	return exists(o.db, "SELECT 1 FROM liked_posts WHERE client_id = ? AND community_id = ? AND post_id = ?",
-		record.ClientId, record.CommunityId, record.PostId)
+	return exists(o.db, "SELECT 1 FROM liked_posts WHERE member_id = ? AND post_id = ?",
+		record.MemberId, record.PostId)
 }
 
 func (o *dbLikedPostsDAO) Add(record LikedPost) error {

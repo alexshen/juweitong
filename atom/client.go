@@ -37,13 +37,13 @@ var (
 )
 
 type Community struct {
-	Name string `json:"value"`
-	Id   string `json:"key"`
+	Name     string `json:"value"` // name of the community
+	MemberId string `json:"key"`   // member id in this community
 }
 
 type LikedPost struct {
-	CommunityId string
-	PostId      string
+	MemberId string
+	PostId   string
 }
 
 type LikedPostsHistory interface {
@@ -282,19 +282,30 @@ func (cli *Client) doQRLogin(id string, onLogin LoginHandler) (string, error) {
 }
 
 func (cli *Client) updateCommunities() {
-	var res []struct {
-		Data []Community `json:"data"`
+	type binding struct {
+		CommunityName string `json:"community_name"`
+		Status        string `json:"status"`
+		Member        string `json:"member"`
+	}
+	var res struct {
+		Binds []binding `json:"binds"`
 	}
 	_, err := Get(
 		cli.httpclient.R().
 			SetQueryParam("seed", strconv.FormatInt(time.Now().UnixMilli(), 10)).
+			SetQueryParam("wxid", "").
 			SetResult(&res),
-		"api/member/communities")
+		"/api/register/member/bind")
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	cli.communities = res[0].Data
+	cli.communities = lo.FilterMap(res.Binds, func(e binding, i int) (Community, bool) {
+		if e.Status != "已通过" {
+			return Community{}, false
+		}
+		return Community{e.CommunityName, e.Member}, true
+	})
 
 }
 
@@ -344,7 +355,7 @@ func (cli *Client) SetCurrentCommunity(i int) error {
 	}
 	_, err := Get(cli.httpclient.R().
 		SetQueryParam("seed", strconv.FormatInt(time.Now().UnixMilli(), 10)),
-		"/api/member/switch/"+cli.communities[i].Id)
+		"/api/member/switch/"+cli.communities[i].MemberId)
 	if err != nil {
 		return err
 	}
@@ -430,7 +441,7 @@ func (cli *Client) LikeProposals(count int) int {
 }
 
 func (cli *Client) likePosts(ids []string, config likePostConfig) int {
-	communityId := cli.CurrentCommunity().Id
+	communityId := cli.CurrentCommunity().MemberId
 	newIds := lo.Filter(ids, func(id string, i int) bool {
 		res, err := cli.history.Has(LikedPost{communityId, id})
 		if err != nil {

@@ -82,7 +82,6 @@ func main() {
 	store := sessions.NewCookieStore(securecookie.GenerateRandomKey(32))
 	store.MaxAge(0)
 
-	var clientsDAO dal.ClientsDAO
 	var likedPostsDAO dal.LikedPostsDAO
 	if *fDBPath != "" {
 		log.Printf("using db at path %s", *fDBPath)
@@ -90,19 +89,17 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		clientsDAO = dal.NewDBClientsDAO(db)
 		likedPostsDAO = dal.NewDBLikedPostsDAO(db)
 	} else {
 		log.Printf("running without using db")
-		clientsDAO = dal.NullClientsDAO{}
 		likedPostsDAO = dal.NullLikedPostsDAO{}
 	}
 
 	router := mux.NewRouter()
-	api.Init(store, clientsDAO)
+	api.Init(store)
 	api.InitClientManager(time.Second*time.Duration(*fMaxAge),
 		time.Second*time.Duration(*fOutRequestTimeout),
-		clientsDAO, likedPostsDAO)
+		likedPostsDAO)
 	api.RegisterHandlers(router)
 
 	// register assets handlers
