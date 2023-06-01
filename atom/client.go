@@ -120,7 +120,7 @@ var (
 	}
 )
 
-func Get(req *resty.Request, url string) (*resty.Response, error) {
+func get(req *resty.Request, url string) (*resty.Response, error) {
 	resp, err := req.Get(url)
 	if err == nil && !resp.IsSuccess() {
 		path, _ := strings.CutPrefix(resp.Request.URL, kBaseUrl)
@@ -135,7 +135,7 @@ func getWithJsonError(req *resty.Request, url string) (*resty.Response, error) {
 		Message string `json:"message"`
 	}{}
 
-	resp, err := Get(req.SetResult(&apiResult), url)
+	resp, err := get(req.SetResult(&apiResult), url)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func (cli *Client) StartQRLogin(onLogin LoginHandler) (string, error) {
 
 func (cli *Client) negotiate() (negotiationResult, error) {
 	var negot negotiationResult
-	_, err := Get(
+	_, err := get(
 		cli.httpclient.R().
 			SetQueryParams(map[string]string{
 				"clientProtocol": kClientProtocol,
@@ -212,7 +212,7 @@ func (cli *Client) createLoginConnection(token string) (*websocket.Conn, error) 
 	opts.Del("tid")
 	opts.Add("_", strconv.FormatInt(time.Now().UnixMilli(), 10))
 
-	_, err = Get(
+	_, err = get(
 		cli.httpclient.R(),
 		"/authorize/start?"+opts.Encode())
 	if err != nil {
@@ -262,7 +262,7 @@ func (cli *Client) doQRLogin(id string, onLogin LoginHandler) (string, error) {
 				continue
 			}
 			if resp.M[0].Init {
-				resp, err := Get(
+				resp, err := get(
 					cli.httpclient.R().SetQueryParam("id", id),
 					"/home/qr_login_more_v1")
 				if err != nil {
@@ -276,7 +276,7 @@ func (cli *Client) doQRLogin(id string, onLogin LoginHandler) (string, error) {
 					url: regexp.MustCompile("\"([^\"]+)").FindStringSubmatch(resp.String())[1],
 				}
 			} else if resp.M[0].BindUser {
-				_, err := Get(
+				_, err := get(
 					cli.httpclient.R().SetQueryParam("id", id),
 					"/home/qr_login_do")
 				if err != nil {
@@ -311,7 +311,7 @@ func (cli *Client) updateCommunities() {
 	var res struct {
 		Binds []binding `json:"binds"`
 	}
-	_, err := Get(
+	_, err := get(
 		cli.httpclient.R().
 			SetQueryParam("seed", strconv.FormatInt(time.Now().UnixMilli(), 10)).
 			SetQueryParam("wxid", "").
@@ -331,7 +331,7 @@ func (cli *Client) updateCommunities() {
 }
 
 func (cli *Client) updateCurrentCommunity() {
-	resp, err := Get(cli.httpclient.R(), "/home/home")
+	resp, err := get(cli.httpclient.R(), "/home/home")
 	if err != nil {
 		log.Print(err)
 		return
@@ -374,7 +374,7 @@ func (cli *Client) SetCurrentCommunity(i int) error {
 	if err := cli.ensureLoggedIn(); err != nil {
 		return err
 	}
-	_, err := Get(cli.httpclient.R().
+	_, err := get(cli.httpclient.R().
 		SetQueryParam("seed", strconv.FormatInt(time.Now().UnixMilli(), 10)),
 		"/api/member/switch/"+cli.communities[i].MemberId)
 	if err != nil {
@@ -497,7 +497,7 @@ func (cli *Client) likePosts(posts []post, config likePostConfig) int {
 
 // getPosts returns count of posts of the latest notices
 func (cli *Client) getPosts(apiPath string, queryParams map[string]string, count int) ([]post, error) {
-	resp, err := Get(
+	resp, err := get(
 		cli.httpclient.R().
 			SetQueryParams(queryParams).
 			SetQueryParam("begin", "0").
