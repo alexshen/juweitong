@@ -132,11 +132,11 @@ func main() {
 		sigint := make(chan os.Signal, 1)
 		signal.Notify(sigint, os.Interrupt, syscall.SIGHUP, syscall.SIGTERM)
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(*fShutdownTimeout))
-		defer cancel()
 		for {
 			switch <-sigint {
 			case os.Interrupt, syscall.SIGTERM:
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(*fShutdownTimeout))
+				defer cancel()
 				if err := server.Shutdown(ctx); err != nil {
 					log.Printf("Shutdown: %v", err)
 				}
