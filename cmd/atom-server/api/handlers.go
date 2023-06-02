@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"log"
 	"net/http"
 
@@ -12,8 +11,6 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/samber/lo"
 )
-
-var ErrUnauthorized = errors.New("Unauthorized")
 
 var (
 	gStore                  sessions.Store
@@ -58,33 +55,6 @@ func RegisterHandlers(r *mux.Router) {
 	r.HandleFunc("/api/selectcommunities", ensureLoggedIn(selectCommunities)).Methods(http.MethodPost)
 	r.HandleFunc("/api/setcurrentcommunity", ensureLoggedIn(setCurrentCommunity)).Methods(http.MethodPost)
 	r.HandleFunc("/api/like{kind:notices|moments|ccpposts|proposals}", ensureLoggedIn(likePosts)).Methods(http.MethodPost)
-}
-
-type responseMessage struct {
-	Success bool   `json:"success"`
-	Err     string `json:"err,omitempty"`
-	Data    any    `json:"data,omitempty"`
-}
-
-func writeJSON(w http.ResponseWriter, obj any) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(obj); err != nil {
-		log.Print(err)
-	}
-}
-
-func writeSuccess(w http.ResponseWriter, data any) {
-	writeJSON(w, responseMessage{
-		Success: true,
-		Data:    data,
-	})
-}
-
-func writeError(w http.ResponseWriter, err error) {
-	writeJSON(w, responseMessage{
-		Success: false,
-		Err:     err.Error(),
-	})
 }
 
 func startQRLogin(w http.ResponseWriter, r *http.Request) {
