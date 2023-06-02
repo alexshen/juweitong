@@ -25,11 +25,11 @@
     });
 
 
-    function setCurrentCommunity(name, onSuccess, onFailure) {
+    function setCurrentCommunity(memberId, onSuccess, onFailure) {
         common.request("/api/setcurrentcommunity", {
-            body: JSON.stringify({
-                name: name
-            }),
+            body: {
+                member_id: memberId
+            },
             method: "POST",
             success: onSuccess,
             error: onFailure,
@@ -60,11 +60,11 @@
             }
 
             const communityElem = $(communityElems[i]);
-            const name = communityElem.find(`[name=root] label`).text();
-            setCurrentCommunity(name, likePosts, () => {
+            setCurrentCommunity(communityElem.attr('id'), likePosts, () => {
                 setCommunityIcon(communityElem, 'error');
-                // step icons
-                communityElem.find('.step > .state-icon').forEach((i, e) => setStep(e, 'error'));
+                for (let s of communityElem.find('.step')) {
+                    setStep($(s), 'error');
+                }
                 likeCommunity(i + 1, onComplete);
             });
 
@@ -164,11 +164,11 @@
     <div class="weui-cells">
         {{range .}}
         <label class="weui-cell weui-check__label">
-            <div class="community">
+            <div id="{{.MemberId}}" class="community">
                 <div name="root">
                     {{template "state_icon" false}}
                     <img class="community-icon" src="./static/image/community.png"/>
-                    <label>{{.}}</label>
+                    <label>{{.Name}}</label>
                 </div>
                 <div class="step" kind="notices">
                     <img class="step-icon" src="./static/image/notices.png"/>

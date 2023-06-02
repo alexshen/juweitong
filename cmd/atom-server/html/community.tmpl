@@ -12,12 +12,12 @@
             });
         });
 
-        function selectCommunity(name, selected) {
+        function selectCommunity(memberId, selected) {
             common.request('/api/selectcommunities', {
                 method: 'post',
                 body: {
                     communities: [{
-                        name: name,
+                        member_id: memberId,
                         selected: selected
                     }]
                 },
@@ -34,7 +34,7 @@
             const checkbox = $(cell).find('input');
             checkbox.prop('checked', checkbox.attr('checked'));
             checkbox.on('change', function (e) {
-                selectCommunity($(e.target).attr('value'), e.target.checked);
+                selectCommunity(e.target.id, e.target.checked);
             });
         }
     });
@@ -52,7 +52,8 @@
                     <input {{if eq $i 0}} required pattern="{1,}" {{end}}
                         type="checkbox" tips="请选择至少一个社区" class="weui-check" 
                         name="community" 
-                        value="{{$item.Name}}"
+                        value="{{$item.MemberId}}"
+                        id="{{$item.MemberId}}"
                         {{if $item.Selected}}checked{{end}}
                     />
                     <i class="weui-icon-checked"></i>

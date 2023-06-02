@@ -121,6 +121,7 @@ func ensureLoggedIn(next apiMustLoggedInFunc) http.HandlerFunc {
 }
 
 type community struct {
+	MemberId string `json:"member_id"`
 	Name     string `json:"name"`
 	Selected bool   `json:"selected"`
 }
@@ -128,7 +129,7 @@ type community struct {
 func getCommunities(w http.ResponseWriter, r *http.Request, client *ClientInstance) {
 	type responseData struct {
 		Communties []community `json:"communities"`
-		Current    int         `json:"current"`
+		Current    string      `json:"current"`
 	}
 
 	selection, err := gSelectedCommunitiesDAO.FindAll(client.Id())
@@ -138,11 +139,12 @@ func getCommunities(w http.ResponseWriter, r *http.Request, client *ClientInstan
 	writeSuccess(w, responseData{
 		Communties: lo.Map(client.Communities(), func(e atom.Community, i int) community {
 			return community{
+				MemberId: e.MemberId,
 				Name:     e.Name,
-				Selected: lo.Contains(selection, e.Name),
+				Selected: lo.Contains(selection, e.MemberId),
 			}
 		}),
-		Current: client.CurrentCommunityIndex(),
+		Current: client.CurrentCommunity().MemberId,
 	})
 }
 
@@ -159,12 +161,12 @@ func selectCommunities(w http.ResponseWriter, r *http.Request, client *ClientIns
 
 	for _, c := range requestData.Communities {
 		if !lo.ContainsBy(client.Communities(), func(e atom.Community) bool {
-			return e.Name == c.Name
+			return e.MemberId == c.MemberId
 		}) {
 			gLog.Errorf("invalid community: %s", c.Name)
 			continue
 		}
-		r := dal.SelectedCommunity{UserId: client.Id(), Name: c.Name}
+		r := dal.SelectedCommunity{UserId: client.Id(), MemberId: c.MemberId}
 		if c.Selected {
 			if _, err := gSelectedCommunitiesDAO.Add(r); err != nil {
 				gLog.Errorf("failed to insert selected community: %v", err)
@@ -179,33 +181,16 @@ func selectCommunities(w http.ResponseWriter, r *http.Request, client *ClientIns
 }
 
 func setCurrentCommunity(w http.ResponseWriter, r *http.Request, client *ClientInstance) {
-	type requestData struct {
-		Current int    `json:"current,omitempty"`
-		Name    string `json:"name"`
-	}
-
-	query := requestData{Current: -1}
-	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
+	var requestData = struct {
+		MemberId string `json:"member_id"`
+	}{}
+	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
 		gLog.Errorf("invalid query: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	index := query.Current
-	if query.Current == -1 {
-		_, index, _ = lo.FindIndexOf(client.Communities(), func(e atom.Community) bool { return e.Name == query.Name })
-		if index == -1 {
-			gLog.Errorf("invalid community name: %s", query.Name)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-	} else if query.Current < 0 || query.Current >= len(client.Communities()) {
-		gLog.Errorf("invalid community index: %d", query.Current)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	if err := client.SetCurrentCommunity(index); err != nil {
+	if err := client.SetCurrentCommunityById(requestData.MemberId); err != nil {
 		writeError(w, err)
 		return
 	}

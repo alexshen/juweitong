@@ -11,8 +11,8 @@ type LikedPostsDAO interface {
 }
 
 type SelectedCommunity struct {
-	UserId string `gorm:"primaryKey"`
-	Name   string `gorm:"primaryKey"`
+	UserId   string `gorm:"primaryKey"`
+	MemberId string `gorm:"primaryKey"`
 }
 
 type SelectedCommunitiesDAO interface {

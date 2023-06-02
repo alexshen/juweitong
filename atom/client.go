@@ -387,6 +387,16 @@ func (cli *Client) SetCurrentCommunity(i int) error {
 	return nil
 }
 
+func (cli *Client) SetCurrentCommunityById(id string) error {
+	_, index, _ := lo.FindIndexOf(cli.Communities(), func(e Community) bool {
+		return e.MemberId == id
+	})
+	if index == -1 {
+		return fmt.Errorf("invalid member id: %s", id)
+	}
+	return cli.SetCurrentCommunity(index)
+}
+
 func (cli *Client) CurrentCommunityIndex() int {
 	return cli.curCommunity
 }
@@ -396,6 +406,12 @@ func (cli *Client) CurrentCommunity() Community {
 		return Community{}
 	}
 	return cli.communities[cli.curCommunity]
+}
+
+func (cli *Client) GetCommunityById(id string) (Community, bool) {
+	return lo.Find(cli.communities, func(e Community) bool {
+		return e.MemberId == id
+	})
 }
 
 func (cli *Client) Id() string {

@@ -63,6 +63,7 @@ func redirectQRLogin(w http.ResponseWriter) {
 func htmlCommunity(w http.ResponseWriter, r *http.Request) {
 	type community struct {
 		Name     string
+		MemberId string
 		Selected bool
 	}
 
@@ -80,7 +81,8 @@ func htmlCommunity(w http.ResponseWriter, r *http.Request) {
 	data := lo.Map(client.Communities(), func(e atom.Community, i int) community {
 		return community{
 			e.Name,
-			lo.Contains(selection, e.Name),
+			e.MemberId,
+			lo.Contains(selection, e.MemberId),
 		}
 	})
 	checkedExecute(t, w, data)
@@ -98,14 +100,13 @@ func htmlDoLike(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	communities := r.Form["community"]
-	if !lo.Every(
-		lo.Map(client.Communities(),
-			func(e atom.Community, i int) string { return e.Name }),
-		communities) {
-		http.Error(w, "invalid communities", http.StatusBadRequest)
-		return
-	}
+	templateData := lo.FilterMap(r.Form["community"], func(id string, i int) (atom.Community, bool) {
+		d, ok := client.GetCommunityById(id)
+		if !ok {
+			gLog.Warning("invalid community id: ", id)
+		}
+		return d, ok
+	})
 	t := getHtml("dolike.tmpl")
-	checkedExecute(t, w, communities)
+	checkedExecute(t, w, templateData)
 }

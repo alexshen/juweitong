@@ -45,14 +45,15 @@ func (o *dbSelectedCommunitiesDAO) FindAll(userId string) ([]string, error) {
 	var results []string
 	if err := o.db.Model(&SelectedCommunity{}).
 		Where("user_id = ?", userId).
-		Pluck("name", &results).Error; err != nil {
+		Pluck("member_id", &results).Error; err != nil {
 		return nil, err
 	}
 	return results, nil
 }
 
 func (o *dbSelectedCommunitiesDAO) Add(record SelectedCommunity) (bool, error) {
-	res := o.db.Exec("INSERT OR IGNORE INTO selected_communities (user_id, name) VALUES(?, ?)", record.UserId, record.Name)
+	res := o.db.Exec("INSERT OR IGNORE INTO selected_communities (user_id, member_id) VALUES(?, ?)",
+		record.UserId, record.MemberId)
 	if res.Error != nil {
 		return false, res.Error
 	}
