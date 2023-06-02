@@ -13,6 +13,7 @@ import (
 
 	"github.com/alexshen/juweitong/cmd/atom-server/api"
 	"github.com/alexshen/juweitong/cmd/atom-server/dal"
+	"github.com/alexshen/juweitong/cmd/atom-server/ioutil"
 	myioutil "github.com/alexshen/juweitong/cmd/atom-server/ioutil"
 	"github.com/alexshen/juweitong/cmd/atom-server/web"
 	"github.com/gorilla/handlers"
@@ -48,7 +49,8 @@ var (
 	fCABundle          = flag.String("ca", "", "path to the ca bundle file")
 	fCert              = flag.String("cert", "", "path to the cert file")
 	fPrivateKey        = flag.String("key", "", "path to the private key")
-	fLog               = flag.String("log", "", "path to the log file, if empty, logging to os.Stdout")
+	fServerLog         = flag.String("serverlog", "server.log", "path to the server log file, if empty, logging to os.Stdout")
+	fAccessLog         = flag.String("accesslog", "access.log", "path to the access log file, if empty, logging to os.Stdout")
 	fOutRequestTimeout = flag.Int("timeout", 60, "seconds before an outgoing request times out")
 	fAssetPath         = flag.String("asset", "", "root path to the assets")
 	fHtmlPath          = flag.String("html", "", "root path to the html templates")
@@ -56,6 +58,8 @@ var (
 	fDBPath            = flag.String("db", "", "path to the sqlite3 database")
 	fLogLevel          loggingLevel
 )
+
+var gLog = logging.MustGetLogger("main")
 
 func init() {
 	fLogLevel.level = logging.INFO
@@ -75,13 +79,44 @@ func getCertFile(caBundlePath, certPath string) (string, error) {
 	return f.Name(), nil
 }
 
+// openLogFile closes the old log file and open a new log file for appending.
+// If path is empty, the old log is simply reopend.
+func mustOpenLogFile(old *os.File, path string) *os.File {
+	if old != nil {
+		if err := old.Close(); err != nil {
+			log.Fatal("failed to close log: ", old.Name())
+		}
+	}
+	if path == "" {
+		if old == nil {
+			panic("path is empty but old is not given")
+		}
+		path = old.Name()
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal("failed to open log: ", path)
+	}
+	return f
+}
+
 func main() {
 	flag.Parse()
 
-	logWriter, err := initLogging(*fLog, fLogLevel.level)
-	if err != nil {
-		log.Fatalf("failed to initialize logging: %v", err)
+	var serverLogFile *os.File
+	serverLogWriter := os.Stdout
+	if *fServerLog != "" {
+		serverLogFile = mustOpenLogFile(nil, *fServerLog)
+		serverLogWriter = serverLogFile
 	}
+
+	var accessLogFile *os.File
+	accessLogWriter := ioutil.NewRedirectableWriter(os.Stdout)
+	if *fAccessLog != "" {
+		accessLogFile = mustOpenLogFile(nil, *fAccessLog)
+		accessLogWriter.SetWriter(accessLogFile)
+	}
+	initLogging(serverLogWriter, fLogLevel.level)
 
 	store := sessions.NewCookieStore(securecookie.GenerateRandomKey(32))
 	store.MaxAge(0)
@@ -128,7 +163,7 @@ func main() {
 
 	server := http.Server{
 		Addr:         ":" + strconv.Itoa(*fPort),
-		Handler:      handlers.LoggingHandler(logWriter, router),
+		Handler:      handlers.LoggingHandler(accessLogWriter, router),
 		ReadTimeout:  2 * time.Minute,
 		WriteTimeout: 2 * time.Minute,
 	}
@@ -150,10 +185,16 @@ func main() {
 				}
 				return
 			case syscall.SIGHUP:
-				// reopen the log file
-				if err := reopenLogFile(); err != nil {
-					gLog.Errorf("unable to open log file: %v", err)
-					break
+				if serverLogFile != nil {
+					serverLogFile = mustOpenLogFile(serverLogFile, "")
+					setLogWriter(serverLogFile)
+					gLog.Info("reopened log file:", serverLogFile.Name())
+				}
+
+				if accessLogFile != nil {
+					accessLogFile = mustOpenLogFile(accessLogFile, "")
+					accessLogWriter.SetWriter(accessLogFile)
+					gLog.Info("reopened log file:", accessLogFile.Name())
 				}
 			}
 		}
@@ -179,4 +220,11 @@ func main() {
 
 	gLog.Info("server has been shutdown")
 	uninitLogging()
+
+	if serverLogFile != nil {
+		serverLogFile.Close()
+	}
+	if accessLogFile != nil {
+		accessLogFile.Close()
+	}
 }
