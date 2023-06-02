@@ -14,7 +14,6 @@ import (
 	"github.com/alexshen/juweitong/cmd/atom-server/api"
 	"github.com/alexshen/juweitong/cmd/atom-server/dal"
 	"github.com/alexshen/juweitong/cmd/atom-server/ioutil"
-	myioutil "github.com/alexshen/juweitong/cmd/atom-server/ioutil"
 	"github.com/alexshen/juweitong/cmd/atom-server/web"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -73,7 +72,7 @@ func getCertFile(caBundlePath, certPath string) (string, error) {
 		return "", err
 	}
 	defer f.Close() // ignore
-	if err := myioutil.ConcatFiles(f, certPath, caBundlePath); err != nil {
+	if err := ioutil.ConcatFiles(f, certPath, caBundlePath); err != nil {
 		return "", err
 	}
 	return f.Name(), nil
