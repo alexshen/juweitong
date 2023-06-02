@@ -2,19 +2,20 @@ package api
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"github.com/alexshen/juweitong/atom"
 	"github.com/alexshen/juweitong/cmd/atom-server/dal"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
+	"github.com/op/go-logging"
 	"github.com/samber/lo"
 )
 
 var (
 	gStore                  sessions.Store
 	gSelectedCommunitiesDAO dal.SelectedCommunitiesDAO
+	gLog                    = logging.MustGetLogger("api")
 )
 
 const kSessionName = "api.session"
@@ -66,19 +67,19 @@ func startQRLogin(w http.ResponseWriter, r *http.Request) {
 	client, err := gClientMgr.New(session)
 	if err != nil {
 		http.Error(w, "", http.StatusInternalServerError)
-		log.Print(err)
+		gLog.Error(err)
 		return
 	}
-	log.Printf("start qr login for %s", client.id)
+	gLog.Infof("start qr login for %s", client.id)
 	qrcodeUrl, err := client.StartQRLogin(func() {
-		log.Printf("%s logged in", client.id)
+		gLog.Infof("%s logged in", client.id)
 	})
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 	if err := session.Save(r, w); err != nil {
-		log.Printf("session save failed: %v", err)
+		gLog.Errorf("session save failed: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -132,7 +133,7 @@ func getCommunities(w http.ResponseWriter, r *http.Request, client *ClientInstan
 
 	selection, err := gSelectedCommunitiesDAO.FindAll(client.Id())
 	if err != nil {
-		log.Printf("failed to get selected communities: %v", err)
+		gLog.Errorf("failed to get selected communities: %v", err)
 	}
 	writeSuccess(w, responseData{
 		Communties: lo.Map(client.Communities(), func(e atom.Community, i int) community {
@@ -151,7 +152,7 @@ func selectCommunities(w http.ResponseWriter, r *http.Request, client *ClientIns
 	}{}
 
 	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
-		log.Printf("invalid query: %v", err)
+		gLog.Errorf("invalid query: %v", err)
 		http.Error(w, "invalid arguments", http.StatusBadRequest)
 		return
 	}
@@ -160,17 +161,17 @@ func selectCommunities(w http.ResponseWriter, r *http.Request, client *ClientIns
 		if !lo.ContainsBy(client.Communities(), func(e atom.Community) bool {
 			return e.Name == c.Name
 		}) {
-			log.Printf("invalid community: %s", c.Name)
+			gLog.Errorf("invalid community: %s", c.Name)
 			continue
 		}
 		r := dal.SelectedCommunity{UserId: client.Id(), Name: c.Name}
 		if c.Selected {
 			if _, err := gSelectedCommunitiesDAO.Add(r); err != nil {
-				log.Printf("failed to insert selected community: %v", err)
+				gLog.Errorf("failed to insert selected community: %v", err)
 			}
 		} else {
 			if err := gSelectedCommunitiesDAO.Delete(r); err != nil {
-				log.Printf("failed to remove selected community: %v", err)
+				gLog.Errorf("failed to remove selected community: %v", err)
 			}
 		}
 	}
@@ -185,7 +186,7 @@ func setCurrentCommunity(w http.ResponseWriter, r *http.Request, client *ClientI
 
 	query := requestData{Current: -1}
 	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
-		log.Printf("invalid query: %v", err)
+		gLog.Errorf("invalid query: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -194,12 +195,12 @@ func setCurrentCommunity(w http.ResponseWriter, r *http.Request, client *ClientI
 	if query.Current == -1 {
 		_, index, _ = lo.FindIndexOf(client.Communities(), func(e atom.Community) bool { return e.Name == query.Name })
 		if index == -1 {
-			log.Printf("invalid community name: %s", query.Name)
+			gLog.Errorf("invalid community name: %s", query.Name)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 	} else if query.Current < 0 || query.Current >= len(client.Communities()) {
-		log.Printf("invalid community index: %d", query.Current)
+		gLog.Errorf("invalid community index: %d", query.Current)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -220,13 +221,13 @@ func likePosts(w http.ResponseWriter, r *http.Request, client *ClientInstance) {
 
 	var query requestData
 	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
-		log.Printf("invalid query: %v", err)
+		gLog.Errorf("invalid query: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	if query.Count <= 0 {
-		log.Printf("invalid count %d", query.Count)
+		gLog.Errorf("invalid count %d", query.Count)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -243,7 +244,7 @@ func likePosts(w http.ResponseWriter, r *http.Request, client *ClientInstance) {
 	case "proposals":
 		numPosts = client.LikeProposals(query.Count)
 	default:
-		log.Printf("unhandled like kind: %s", kind)
+		gLog.Errorf("unhandled like kind: %s", kind)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

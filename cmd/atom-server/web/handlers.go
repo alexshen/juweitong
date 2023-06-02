@@ -2,7 +2,6 @@ package web
 
 import (
 	"io/ioutil"
-	"log"
 	"net/http"
 	"path/filepath"
 	"text/template"
@@ -11,11 +10,15 @@ import (
 	"github.com/alexshen/juweitong/cmd/atom-server/api"
 	"github.com/alexshen/juweitong/cmd/atom-server/dal"
 	"github.com/gorilla/mux"
+	"github.com/op/go-logging"
 	"github.com/samber/lo"
 )
 
-var gHtmlRoot string
-var gSelectedCommunitiesDAO dal.SelectedCommunitiesDAO
+var (
+	gHtmlRoot               string
+	gSelectedCommunitiesDAO dal.SelectedCommunitiesDAO
+	gLog                    = logging.MustGetLogger("web")
+)
 
 func Init(root string, selectedCommunitiesDAO dal.SelectedCommunitiesDAO) {
 	gHtmlRoot = root
@@ -24,7 +27,7 @@ func Init(root string, selectedCommunitiesDAO dal.SelectedCommunitiesDAO) {
 
 func checkedExecute(t *template.Template, w http.ResponseWriter, data any) {
 	if err := t.Execute(w, data); err != nil {
-		log.Print(err)
+		gLog.Error(err)
 	}
 }
 
@@ -70,7 +73,7 @@ func htmlCommunity(w http.ResponseWriter, r *http.Request) {
 	}
 	selection, err := gSelectedCommunitiesDAO.FindAll(client.Id())
 	if err != nil {
-		log.Printf("failed to get selected communities: %v", err)
+		gLog.Errorf("failed to get selected communities: %v", err)
 	}
 
 	t := getHtml("community.tmpl")

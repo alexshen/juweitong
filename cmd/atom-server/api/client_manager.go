@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log"
 	"sync"
 	"time"
 
@@ -80,7 +79,7 @@ func (mgr *AtomClientManager) New(session *sessions.Session) (*ClientInstance, e
 	inst.Client.SetTimeout(mgr.outRequestTimeout)
 	inst.touch(mgr.maxAge, func() {
 		mgr.remove(id)
-		log.Printf("removed %s", id)
+		gLog.Infof("removed client instance %s", id)
 	})
 	mgr.clients[id] = inst
 	return inst, nil

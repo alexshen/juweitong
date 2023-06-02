@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 )
 
@@ -15,7 +14,7 @@ type responseMessage struct {
 func writeJSON(w http.ResponseWriter, obj any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(obj); err != nil {
-		log.Print(err)
+		gLog.Error(err)
 	}
 }
 

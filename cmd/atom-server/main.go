@@ -13,16 +13,33 @@ import (
 
 	"github.com/alexshen/juweitong/cmd/atom-server/api"
 	"github.com/alexshen/juweitong/cmd/atom-server/dal"
-	"github.com/alexshen/juweitong/cmd/atom-server/ioutil"
 	myioutil "github.com/alexshen/juweitong/cmd/atom-server/ioutil"
 	"github.com/alexshen/juweitong/cmd/atom-server/web"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
+	"github.com/op/go-logging"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+type loggingLevel struct {
+	level logging.Level
+}
+
+func (l *loggingLevel) String() string {
+	return l.level.String()
+}
+
+func (l *loggingLevel) Set(s string) error {
+	level, err := logging.LogLevel(s)
+	if err != nil {
+		return err
+	}
+	l.level = level
+	return nil
+}
 
 var (
 	fPort              = flag.Int("port", 8080, "listening port")
@@ -37,9 +54,13 @@ var (
 	fHtmlPath          = flag.String("html", "", "root path to the html templates")
 	fShutdownTimeout   = flag.Int("shutdown", 60, "graceful shutdown timeout in seconds")
 	fDBPath            = flag.String("db", "", "path to the sqlite3 database")
+	fLogLevel          loggingLevel
 )
 
-var gLogFile *os.File
+func init() {
+	fLogLevel.level = logging.INFO
+	flag.Var(&fLogLevel, "level", "logging level, valid values are DEBUG,INFO,WARN,ERROR")
+}
 
 // getCertFile returns the file path containing the cert file and ca bundle
 func getCertFile(caBundlePath, certPath string) (string, error) {
@@ -54,29 +75,12 @@ func getCertFile(caBundlePath, certPath string) (string, error) {
 	return f.Name(), nil
 }
 
-func reopenLogFile() error {
-	if *fLog == "" {
-		return nil
-	}
-	f, err := os.OpenFile(*fLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-
-	if gLogFile != nil {
-		gLogFile.Close()
-	}
-	gLogFile = f
-	log.SetOutput(gLogFile)
-
-	return nil
-}
-
 func main() {
 	flag.Parse()
 
-	if err := reopenLogFile(); err != nil {
-		log.Fatal(err)
+	logWriter, err := initLogging(*fLog, fLogLevel.level)
+	if err != nil {
+		log.Fatalf("failed to initialize logging: %v", err)
 	}
 
 	store := sessions.NewCookieStore(securecookie.GenerateRandomKey(32))
@@ -85,18 +89,18 @@ func main() {
 	var likedPostsDAO dal.LikedPostsDAO
 	var selectedCommunitiesDAO dal.SelectedCommunitiesDAO
 	if *fDBPath != "" {
-		log.Printf("using db at path %s", *fDBPath)
+		gLog.Infof("using db at path %s", *fDBPath)
 		db, err := gorm.Open(sqlite.Open(*fDBPath), &gorm.Config{})
 		if err != nil {
-			log.Fatal(err)
+			gLog.Fatal(err)
 		}
 		if err := db.AutoMigrate(&dal.LikedPost{}, &dal.SelectedCommunity{}); err != nil {
-			log.Fatal(err)
+			gLog.Fatal(err)
 		}
 		likedPostsDAO = dal.NewDBLikedPostsDAO(db)
 		selectedCommunitiesDAO = dal.NewSelectedCommunitiesDAO(db)
 	} else {
-		log.Printf("running without using db")
+		gLog.Info("running without using db")
 		likedPostsDAO = dal.NullLikedPostsDAO{}
 		selectedCommunitiesDAO = dal.NullSelectedCommunitiesDAO{}
 	}
@@ -110,19 +114,17 @@ func main() {
 
 	// register assets handlers
 	if *fAssetPath == "" {
-		log.Fatal("asset root path not specified")
+		gLog.Fatal("asset root path not specified")
 	}
 	router.PathPrefix("/static/").Handler(
 		http.StripPrefix("/static/", http.FileServer(http.Dir(*fAssetPath))))
 
 	// register web handlers
 	if *fHtmlPath == "" {
-		log.Fatal("html root path not specified")
+		gLog.Fatal("html root path not specified")
 	}
 	web.Init(*fHtmlPath, selectedCommunitiesDAO)
 	web.RegisterHandlers(router)
-
-	logWriter := ioutil.NewRedirectableWriter(gLogFile)
 
 	server := http.Server{
 		Addr:         ":" + strconv.Itoa(*fPort),
@@ -130,7 +132,7 @@ func main() {
 		ReadTimeout:  2 * time.Minute,
 		WriteTimeout: 2 * time.Minute,
 	}
-	log.Printf("starting server, listening at %s", server.Addr)
+	gLog.Infof("starting server, listening at %s", server.Addr)
 
 	shutdown := make(chan struct{})
 	go func() {
@@ -144,41 +146,37 @@ func main() {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(*fShutdownTimeout))
 				defer cancel()
 				if err := server.Shutdown(ctx); err != nil {
-					log.Printf("Shutdown: %v", err)
+					gLog.Errorf("Shutdown: %v", err)
 				}
 				return
 			case syscall.SIGHUP:
 				// reopen the log file
 				if err := reopenLogFile(); err != nil {
-					log.Printf("unable to open log file: %v", err)
+					gLog.Errorf("unable to open log file: %v", err)
 					break
 				}
-				log.Printf("log file reopened")
-				logWriter.SetWriter(gLogFile)
 			}
 		}
 	}()
 
 	if *fHttp {
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatalf("ListenAndServe: %v", err)
+			gLog.Fatalf("ListenAndServe: %v", err)
 		}
 	} else {
 		certFile, err := getCertFile(*fCABundle, *fCert)
 		if err != nil {
-			log.Fatalf("failed to create the cert file: %v", err)
+			gLog.Fatalf("failed to create the cert file: %v", err)
 		}
 		defer os.Remove(certFile)
 		if err := server.ListenAndServeTLS(certFile, *fPrivateKey); err != http.ErrServerClosed {
-			log.Fatalf("ListenAndServeTLS: %v", err)
+			gLog.Fatalf("ListenAndServeTLS: %v", err)
 		}
 	}
 
 	<-shutdown
 	api.ClientManager().Stop()
 
-	log.Print("server has been shutdown")
-	if gLogFile != nil {
-		gLogFile.Close()
-	}
+	gLog.Info("server has been shutdown")
+	uninitLogging()
 }
