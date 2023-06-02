@@ -1,8 +1,11 @@
 package dal
 
+import "time"
+
 type LikedPost struct {
-	MemberId string `gorm:"primaryKey"`
-	PostId   string `gorm:"primaryKey"`
+	MemberId  string `gorm:"primaryKey"`
+	PostId    string `gorm:"primaryKey"`
+	CreatedAt time.Time
 }
 
 type LikedPostsDAO interface {
