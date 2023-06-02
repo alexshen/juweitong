@@ -62,6 +62,7 @@ func (o NullLikedPostsHistory) Add(post LikedPost) error {
 }
 
 type Client struct {
+	id           string
 	communities  []Community
 	state        atomic.Int32
 	httpclient   *resty.Client
@@ -309,6 +310,7 @@ func (cli *Client) updateCommunities() {
 		Member        string `json:"member"`
 	}
 	var res struct {
+		Id    string    `json:"wx"`
 		Binds []binding `json:"binds"`
 	}
 	_, err := get(
@@ -321,6 +323,7 @@ func (cli *Client) updateCommunities() {
 		log.Println(err)
 		return
 	}
+	cli.id = res.Id
 	cli.communities = lo.FilterMap(res.Binds, func(e binding, i int) (Community, bool) {
 		if e.Status != "已通过" {
 			return Community{}, false
@@ -393,6 +396,10 @@ func (cli *Client) CurrentCommunity() Community {
 		return Community{}
 	}
 	return cli.communities[cli.curCommunity]
+}
+
+func (cli *Client) Id() string {
+	return cli.id
 }
 
 // LikeNotices visits count of the latest notices and returns the number of

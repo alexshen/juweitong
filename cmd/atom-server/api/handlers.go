@@ -19,8 +19,9 @@ import (
 var ErrUnauthorized = errors.New("Unauthorized")
 
 var (
-	gClientMgr *AtomClientManager
-	gStore     sessions.Store
+	gClientMgr              *AtomClientManager
+	gStore                  sessions.Store
+	gSelectedCommunitiesDAO dal.SelectedCommunitiesDAO
 )
 
 const (
@@ -55,8 +56,9 @@ type AtomClientManager struct {
 	likedPostsDAO     dal.LikedPostsDAO
 }
 
-func Init(store sessions.Store) {
+func Init(store sessions.Store, selectedCommunitiesDAO dal.SelectedCommunitiesDAO) {
 	gStore = store
+	gSelectedCommunitiesDAO = selectedCommunitiesDAO
 }
 
 func GetSession(r *http.Request) *sessions.Session {
@@ -170,6 +172,7 @@ func RegisterHandlers(r *mux.Router) {
 	r.HandleFunc("/api/startqrlogin", startQRLogin).Methods(http.MethodPost)
 	r.HandleFunc("/api/isloggedin", isLoggedIn).Methods(http.MethodGet)
 	r.HandleFunc("/api/getcommunities", ensureLoggedIn(getCommunities)).Methods(http.MethodGet)
+	r.HandleFunc("/api/selectcommunities", ensureLoggedIn(selectCommunities)).Methods(http.MethodPost)
 	r.HandleFunc("/api/setcurrentcommunity", ensureLoggedIn(setCurrentCommunity)).Methods(http.MethodPost)
 	r.HandleFunc("/api/like{kind:notices|moments|ccpposts|proposals}", ensureLoggedIn(likePosts)).Methods(http.MethodPost)
 }
@@ -263,18 +266,62 @@ func ensureLoggedIn(next apiMustLoggedInFunc) http.HandlerFunc {
 	}
 }
 
+type community struct {
+	Name     string `json:"name"`
+	Selected bool   `json:"selected"`
+}
+
 func getCommunities(w http.ResponseWriter, r *http.Request, client *ClientInstance) {
 	type responseData struct {
-		Names   []string `json:"names"`
-		Current int      `json:"current"`
+		Communties []community `json:"communities"`
+		Current    int         `json:"current"`
 	}
 
+	selection, err := gSelectedCommunitiesDAO.FindAll(client.Id())
+	if err != nil {
+		log.Printf("failed to get selected communities: %v", err)
+	}
 	writeSuccess(w, responseData{
-		Names: lo.Map(client.Communities(), func(e atom.Community, i int) string {
-			return e.Name
+		Communties: lo.Map(client.Communities(), func(e atom.Community, i int) community {
+			return community{
+				Name:     e.Name,
+				Selected: lo.Contains(selection, e.Name),
+			}
 		}),
 		Current: client.CurrentCommunityIndex(),
 	})
+}
+
+func selectCommunities(w http.ResponseWriter, r *http.Request, client *ClientInstance) {
+	var requestData = struct {
+		Communities []community `json:"communities"`
+	}{}
+
+	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
+		log.Printf("invalid query: %v", err)
+		http.Error(w, "invalid arguments", http.StatusBadRequest)
+		return
+	}
+
+	for _, c := range requestData.Communities {
+		if !lo.ContainsBy(client.Communities(), func(e atom.Community) bool {
+			return e.Name == c.Name
+		}) {
+			log.Printf("invalid community: %s", c.Name)
+			continue
+		}
+		r := dal.SelectedCommunity{UserId: client.Id(), Name: c.Name}
+		if c.Selected {
+			if _, err := gSelectedCommunitiesDAO.Add(r); err != nil {
+				log.Printf("failed to insert selected community: %v", err)
+			}
+		} else {
+			if err := gSelectedCommunitiesDAO.Delete(r); err != nil {
+				log.Printf("failed to remove selected community: %v", err)
+			}
+		}
+	}
+	writeSuccess(w, nil)
 }
 
 func setCurrentCommunity(w http.ResponseWriter, r *http.Request, client *ClientInstance) {

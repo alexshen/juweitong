@@ -12,32 +12,32 @@
             });
         });
 
-        const ignored = new Set(getIgnoredCommunities());
+        function selectCommunity(name, selected) {
+            common.request('/api/selectcommunities', {
+                method: 'post',
+                body: {
+                    communities: [{
+                        name: name,
+                        selected: selected
+                    }]
+                },
+                success() {
+                    console.log(`${name} selected: ${selectCommunity}`);
+                },
+                error(e) {
+                    console.error('failed to select community: ' + e);
+                }
+            });
+        }
+
         for (let cell of $('.weui-cell')) {
             const checkbox = $(cell).find('input');
-            checkbox.prop('checked', !ignored.has(checkbox.val()));
+            checkbox.prop('checked', checkbox.attr('checked'));
             checkbox.on('change', function (e) {
-                if (e.target.checked) {
-                    ignored.delete($(e.target).val());
-                } else {
-                    ignored.add($(e.target).val());
-                }
-                setIgnoredCommunities(Array.from(ignored));
+                selectCommunity($(e.target).attr('value'), e.target.checked);
             });
         }
     });
-
-    function getIgnoredCommunities() {
-        try {
-            return JSON.parse(localStorage.getItem("ignored_communities")) || [];
-        } catch (e) {
-            return [];
-        }
-    }
-
-    function setIgnoredCommunities(data) {
-        localStorage.setItem("ignored_communities", JSON.stringify(data));
-    }
 
 </script>
 <div class="page__hd">
@@ -51,7 +51,10 @@
                 <div class="weui-cell__hd">
                     <input {{if eq $i 0}} required pattern="{1,}" {{end}}
                         type="checkbox" tips="请选择至少一个社区" class="weui-check" 
-                        name="community" value="{{$item.Name}}"/>
+                        name="community" 
+                        value="{{$item.Name}}"
+                        {{if $item.Selected}}checked{{end}}
+                    />
                     <i class="weui-icon-checked"></i>
                 </div>
                 <div class="weui-cell__bd">{{$item.Name}}</div>

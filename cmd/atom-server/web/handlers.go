@@ -9,14 +9,17 @@ import (
 
 	"github.com/alexshen/juweitong/atom"
 	"github.com/alexshen/juweitong/cmd/atom-server/api"
+	"github.com/alexshen/juweitong/cmd/atom-server/dal"
 	"github.com/gorilla/mux"
 	"github.com/samber/lo"
 )
 
 var gHtmlRoot string
+var gSelectedCommunitiesDAO dal.SelectedCommunitiesDAO
 
-func SetHtmlRoot(root string) {
+func Init(root string, selectedCommunitiesDAO dal.SelectedCommunitiesDAO) {
 	gHtmlRoot = root
+	gSelectedCommunitiesDAO = selectedCommunitiesDAO
 }
 
 func checkedExecute(t *template.Template, w http.ResponseWriter, data any) {
@@ -55,13 +58,29 @@ func redirectQRLogin(w http.ResponseWriter) {
 }
 
 func htmlCommunity(w http.ResponseWriter, r *http.Request) {
+	type community struct {
+		Name     string
+		Selected bool
+	}
+
 	client := api.ClientManager().Get(api.GetSession(r))
 	if client == nil {
 		redirectQRLogin(w)
 		return
 	}
+	selection, err := gSelectedCommunitiesDAO.FindAll(client.Id())
+	if err != nil {
+		log.Printf("failed to get selected communities: %v", err)
+	}
+
 	t := getHtml("community.tmpl")
-	checkedExecute(t, w, client.Communities())
+	data := lo.Map(client.Communities(), func(e atom.Community, i int) community {
+		return community{
+			e.Name,
+			lo.Contains(selection, e.Name),
+		}
+	})
+	checkedExecute(t, w, data)
 }
 
 func htmlDoLike(w http.ResponseWriter, r *http.Request) {

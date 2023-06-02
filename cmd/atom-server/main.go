@@ -83,20 +83,26 @@ func main() {
 	store.MaxAge(0)
 
 	var likedPostsDAO dal.LikedPostsDAO
+	var selectedCommunitiesDAO dal.SelectedCommunitiesDAO
 	if *fDBPath != "" {
 		log.Printf("using db at path %s", *fDBPath)
 		db, err := gorm.Open(sqlite.Open(*fDBPath), &gorm.Config{})
 		if err != nil {
 			log.Fatal(err)
 		}
+		if err := db.AutoMigrate(&dal.LikedPost{}, &dal.SelectedCommunity{}); err != nil {
+			log.Fatal(err)
+		}
 		likedPostsDAO = dal.NewDBLikedPostsDAO(db)
+		selectedCommunitiesDAO = dal.NewSelectedCommunitiesDAO(db)
 	} else {
 		log.Printf("running without using db")
 		likedPostsDAO = dal.NullLikedPostsDAO{}
+		selectedCommunitiesDAO = dal.NullSelectedCommunitiesDAO{}
 	}
 
 	router := mux.NewRouter()
-	api.Init(store)
+	api.Init(store, selectedCommunitiesDAO)
 	api.InitClientManager(time.Second*time.Duration(*fMaxAge),
 		time.Second*time.Duration(*fOutRequestTimeout),
 		likedPostsDAO)
@@ -113,7 +119,7 @@ func main() {
 	if *fHtmlPath == "" {
 		log.Fatal("html root path not specified")
 	}
-	web.SetHtmlRoot(*fHtmlPath)
+	web.Init(*fHtmlPath, selectedCommunitiesDAO)
 	web.RegisterHandlers(router)
 
 	logWriter := ioutil.NewRedirectableWriter(gLogFile)
