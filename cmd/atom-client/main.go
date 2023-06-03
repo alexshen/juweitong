@@ -1,13 +1,17 @@
 package main
 
 import (
+	"flag"
 	"log"
 
 	"github.com/alexshen/juweitong/atom"
 	"github.com/skratchdot/open-golang/open"
 )
 
+var fPost = flag.Int("post", 10, "number of posts to visit")
+
 func main() {
+	flag.Parse()
 	client := atom.NewClient(atom.NullLikedPostsHistory{})
 	loggedIn := make(chan struct{})
 	url, err := client.StartQRLogin(func() {
@@ -27,9 +31,9 @@ func main() {
 			continue
 		}
 		log.Printf("Visiting community: %s", comm.Name)
-		log.Printf("Liked notices: %d", client.LikeNotices(1))
-		log.Printf("Liked moments: %d", client.LikeMoments(1))
-		log.Printf("Liked ccp notices: %d", client.LikeCCPPosts(1))
-		log.Printf("Liked proposals: %d", client.LikeProposals(1))
+		log.Printf("Liked notices: %d", client.LikeNotices(*fPost))
+		log.Printf("Liked moments: %d", client.LikeMoments(*fPost))
+		log.Printf("Liked ccp notices: %d", client.LikeCCPPosts(*fPost))
+		log.Printf("Liked proposals: %d", client.LikeProposals(*fPost))
 	}
 }
