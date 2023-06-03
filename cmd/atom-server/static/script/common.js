@@ -9,7 +9,7 @@
         const opts = { ...options };
         opts.headers = opts.headers || {};
         if (!opts.headers['Content-Type']) {
-            opts.headers['Content-Type'] = 'application/json';
+            opts.headers['Content-Type'] = 'application/json; charset=utf-8';
         }
         if (typeof opts.body === 'object') {
             opts.body = JSON.stringify(opts.body);

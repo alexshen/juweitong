@@ -65,16 +65,28 @@
         });
     });
 </script>
+<style>
+    .qr-code {
+        max-width: 256px;
+        width: 60%;
+    }
+    .loading-icon {
+        color: var(--weui-BRAND);
+    }
+    .center {
+        text-align: center;
+    }
+</style>
 <div class="page__hd">
     <h1 class="page__title">长按二维码登入社区通</h1>
 </div>
 <div class="page__bd">
-    <img id="qr_code" class="center-block" style="width: 60%"/>
+    <img id="qr_code" class="center-block qr-code" alt="qr code"/>
     <div id="loading">
-        <i role="img" aria-label="正在加载" class="weui-mask-loading center-block" style="color:var(--weui-BRAND);"></i>
-        <p class="page__desc" style="text-align: center">正在加载</p>
+        <i role="img" aria-label="正在加载" class="weui-mask-loading center-block loading-icon"></i>
+        <p class="page__desc center">正在加载</p>
     </div>
-    <div id="load_error">
-        <p class="page__desc" style="text-align: center">加载失败，请刷新重试</p>
+    <div id="load_error" class="center-block">
+        <p class="page__desc center">加载失败，请刷新重试</p>
     </div>
 </div>

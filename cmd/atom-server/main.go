@@ -119,6 +119,7 @@ func main() {
 
 	store := sessions.NewCookieStore(securecookie.GenerateRandomKey(32))
 	store.MaxAge(0)
+	store.Options.Secure = !*fHttp
 
 	var likedPostsDAO dal.LikedPostsDAO
 	var selectedCommunitiesDAO dal.SelectedCommunitiesDAO
