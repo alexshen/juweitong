@@ -14,7 +14,7 @@ var (
 
 func initLogging(w io.Writer, level logging.Level) {
 	var format = logging.MustStringFormatter(
-		`%{color}%{time:15:04:05.000} %{level:.4s} %{shortfunc}%{color:reset} - %{message}`)
+		`%{color}%{time:2006-01-02 15:04:05.000} %{level:.4s} %{shortfunc}%{color:reset} - %{message}`)
 	logging.SetFormatter(format)
 	logging.SetLevel(level, "")
 	gLogWriter = ioutil.NewRedirectableWriter(w)
